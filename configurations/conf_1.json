@@ -1,0 +1,20 @@
+{
+  "seed": 0,
+  "run_id": 0,
+  "num_epochs": 10,
+  "save_epochs": 1,
+  "batch_size": 5,
+  "steps": 4,
+  "learning_rate": 1e-3,
+  "weight_decay": 1e-6,
+  "optimizer": "Adam",
+  "swa_start": -1,
+  "swa_update_interval": 0,
+  "f1_threshold": 0.5,
+  "model_version": "v1",
+  "num_mlad_layers": 5,
+  "num_clips": 128,
+  "dim_of_features": 2048,
+  "eval_mode": "slide",
+  "class_to_evaluate": ["Run", "Jump", "Fall", "Sit"]
+}
