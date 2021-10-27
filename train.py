@@ -44,9 +44,7 @@ def evaluate(cfg_model, cfg_dataset, class_to_evaluate, f1_threshold, epoch, nn_
     
     predictions, ground_truth = [], []
 
-    video_list = [video_list[0]]
     for i, video in tqdm(enumerate(video_list)):
-        print(video)
         features_video = features_test[video]
         labels = build_labels(
             video, cfg_dataset.annotations_file, len(features_video), cfg_dataset.num_classes, False)
@@ -103,8 +101,12 @@ def evaluate(cfg_model, cfg_dataset, class_to_evaluate, f1_threshold, epoch, nn_
             outputs = outputs.reshape(-1, cfg_dataset.num_classes)
             labels = labels.reshape(-1, cfg_dataset.num_classes)
             
-            filtered_outputs = torch.gather(outputs, 1, torch.tensor([class_to_evaluate] * outputs.shape[0]))
-            filtered_labels = torch.gather(labels, 1, torch.tensor([class_to_evaluate] * outputs.shape[0]))
+            indices = torch.tensor([class_to_evaluate] * outputs.shape[0])
+            if use_cuda:
+                indices.cuda()
+
+            filtered_outputs = torch.gather(outputs, 1, indices)
+            filtered_labels = torch.gather(labels, 1, indices)
             
             filtered_outputs = filtered_outputs.cpu().data.numpy()
             filtered_labels = filtered_labels.cpu().data.numpy()
