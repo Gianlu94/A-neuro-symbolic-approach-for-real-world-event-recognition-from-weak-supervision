@@ -103,11 +103,11 @@ def evaluate(cfg_model, cfg_dataset, class_to_evaluate, f1_threshold, epoch, nn_
             
             indices = torch.tensor([class_to_evaluate] * outputs.shape[0])
             if use_cuda:
-                indices.cuda()
+                indices = indices.cuda()
 
-            filtered_outputs = torch.gather(outputs, 1, )
-            filtered_labels = torch.gather(labels, 1, )
-            
+            filtered_outputs = torch.gather(outputs, 1, indices)
+            filtered_labels = torch.gather(labels, 1, indices)
+
             filtered_outputs = filtered_outputs.cpu().data.numpy()
             filtered_labels = filtered_labels.cpu().data.numpy()
 
