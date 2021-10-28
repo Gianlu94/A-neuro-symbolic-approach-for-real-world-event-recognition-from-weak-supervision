@@ -4,16 +4,21 @@ A neuro-symbolic framework for structured event recognition using Allen's interv
 <!-- GETTING STARTED -->
 ## Getting Started
 
-1) First create the environment containing all the dependencies and activate it:
+1) Install Minizinc:
+
+    https://www.minizinc.org/doc-2.5.5/en/installation.html
+    
+2) Create the environment containing all the dependencies and activate it:
 ```sh
   conda env create -f environment.yml
   conda activate ns-env
-  ``` 
-2) Download pretrained MLAD model on MultiTHUMOS dataset and put it in mlad/models/pretrained_models/:
+  ```
+  
+3) Download pretrained MLAD model on MultiTHUMOS dataset and put it in mlad/models/pretrained_models/:
 
     https://drive.google.com/file/d/1vXq-y68hC4Qe6N1PBk3DlqGjOWhP9Vsc/view?usp=sharing
 
-3) Download train and test features and put them in datasets/MultiTHUMOS/features/
+4) Download train and test features and put them in datasets/MultiTHUMOS/features/
 
     https://drive.google.com/drive/folders/1txv4OyMd88ku3nzWAeYVhJ-9YR8NHE8w?usp=sharing
 
