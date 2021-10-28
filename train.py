@@ -138,7 +138,7 @@ def evaluate(cfg_model, cfg_dataset, class_to_evaluate, f1_threshold, epoch, nn_
     
     # return np.nanmean(avg_precision_score)
     
-def _build_loss_for_the_network(sol, final_output, bce_loss):
+def _build_loss_for_the_network(sol, final_output, bce_loss, use_cuda):
     time_points = list(sol[0].values())
     max_time = final_output.shape[1] - 1
     
@@ -155,10 +155,21 @@ def _build_loss_for_the_network(sol, final_output, bce_loss):
         #     +torch.sum(final_output[index_atomic_action, :begin])
         #     +torch.sum(final_output[index_atomic_action, end:])
         # )
+        # se event happened
+        logic_label_pos = torch.ones(end-begin+1)
+        # se event not happened
+        logic_label_neg_1 = torch.zeros(begin-0)
+        logic_label_neg_2 = torch.zeros(max_time-end)
+        
+        if use_cuda:
+            logic_label_pos = logic_label_pos.cuda()
+            logic_label_neg_1 = logic_label_neg_1.cuda()
+            logic_label_neg_2 = logic_label_neg_2.cuda()
+        
         loss += (
-            bce_loss(final_output[index_atomic_action, begin:end + 1], torch.ones(end-begin+1)) +
-            bce_loss(final_output[index_atomic_action, :begin], torch.zeros(begin-0)) +
-            bce_loss(final_output[index_atomic_action, end+1:], torch.zeros(max_time-end))
+            bce_loss(final_output[index_atomic_action, begin:end + 1], logic_label_pos) +
+            bce_loss(final_output[index_atomic_action, :begin], logic_label_neg_1) +
+            bce_loss(final_output[index_atomic_action, end+1:], logic_label_neg_2)
         )
         
         return loss
@@ -231,10 +242,10 @@ def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_trai
             mnz_model = mnz_models[se_name]
             # build minizinc problem by including data
             mnz_problem = build_problem(se_name, mnz_model, final_output_transpose, dataset_classes)
-            # get solutions+
+            # get solutions
             sol = pymzn.minizinc(mnz_problem)
             
-            sample_loss = _build_loss_for_the_network(sol, final_output_transpose, bce_loss)
+            sample_loss = _build_loss_for_the_network(sol, final_output_transpose, bce_loss, cfg_model["use_cuda"])
             batch_loss += sample_loss
 
             sample_loss.backward()
