@@ -137,42 +137,30 @@ def evaluate(cfg_model, cfg_dataset, class_to_evaluate, f1_threshold, epoch, nn_
         writer.add_scalar('Validation AP', np.nanmean(avg_precision_score), epoch)
     
     # return np.nanmean(avg_precision_score)
-    
+
+
 def _build_loss_for_the_network(sol, final_output, bce_loss, use_cuda):
     time_points = list(sol[0].values())
-    max_time = final_output.shape[1] - 1
+    # index start from 0
+    time_points = [t-1 for t in time_points]
+
+    cols = [list(range(time_points[i], time_points[i+1] + 1)) for i in range(0, len(time_points), 2)]
+    flat_cols = [item for sublist in cols for item in sublist]
+    rows = []
+    [rows.extend([i] * len(cols[i])) for i in range(len(cols))]
+
+    labels = torch.zeros(final_output.shape)
+    labels[rows, flat_cols] = 1
     
-    loss = 0.
+    if use_cuda:
+        time_points = time_points.cuda()
+
+    labels = torch.zeros(final_output.shape)
+    labels[:, time_points] = 1
     
-    for i in range(0, len(time_points), 2):
-        begin = time_points[i] - 1
-        end = time_points[i + 1] - 1
-        
-        index_atomic_action = i // 2
-        
-        # loss += (
-        #     -torch.sum(final_output[index_atomic_action, begin:end+1])
-        #     +torch.sum(final_output[index_atomic_action, :begin])
-        #     +torch.sum(final_output[index_atomic_action, end:])
-        # )
-        # se event happened
-        logic_label_pos = torch.ones(end-begin+1)
-        # se event not happened
-        logic_label_neg_1 = torch.zeros(begin-0)
-        logic_label_neg_2 = torch.zeros(max_time-end)
-        
-        if use_cuda:
-            logic_label_pos = logic_label_pos.cuda()
-            logic_label_neg_1 = logic_label_neg_1.cuda()
-            logic_label_neg_2 = logic_label_neg_2.cuda()
-        
-        loss += (
-            bce_loss(final_output[index_atomic_action, begin:end + 1], logic_label_pos) +
-            bce_loss(final_output[index_atomic_action, :begin], logic_label_neg_1) +
-            bce_loss(final_output[index_atomic_action, end+1:], logic_label_neg_2)
-        )
-        
-        return loss
+    loss = bce_loss(final_output, labels)
+    
+    return loss
 
 
 def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_train, features_test, nn_model, mnz_models):
@@ -241,11 +229,11 @@ def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_trai
             # get the model for the current se
             mnz_model = mnz_models[se_name]
             # build minizinc problem by including data
-            mnz_problem = build_problem(se_name, mnz_model, final_output_transpose, dataset_classes)
+            mnz_problem, filtered_output = build_problem(se_name, mnz_model, final_output_transpose, dataset_classes)
             # get solutions
             sol = pymzn.minizinc(mnz_problem)
             
-            sample_loss = _build_loss_for_the_network(sol, final_output_transpose, bce_loss, cfg_model["use_cuda"])
+            sample_loss = _build_loss_for_the_network(sol, filtered_output, bce_loss, cfg_model["use_cuda"])
             batch_loss += sample_loss
 
             sample_loss.backward()

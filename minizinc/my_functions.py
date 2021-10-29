@@ -38,5 +38,5 @@ def build_problem(se_name, model, nn_output, classes):
                                      0)
     data += _create_atomic_actions_matrix(se_name, atomic_actions)
 
-    return model + data
+    return model + data, atomic_actions
     
