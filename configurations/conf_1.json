@@ -16,5 +16,5 @@
   "num_clips": 128,
   "dim_of_features": 2048,
   "eval_mode": "slide",
-  "class_to_evaluate": ["Run", "Jump", "Fall", "Sit"]
+  "class_to_evaluate": ["Run", "Jump", "Fall", "Sit", "HighJump", "LongJump"]
 }

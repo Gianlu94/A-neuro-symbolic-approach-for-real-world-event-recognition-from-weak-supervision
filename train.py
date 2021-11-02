@@ -232,7 +232,6 @@ def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_trai
             mnz_problem, filtered_output = build_problem(se_name, mnz_model, final_output_transpose, dataset_classes)
             # get solutions
             sol = pymzn.minizinc(mnz_problem)
-            
             sample_loss = _build_loss_for_the_network(sol, filtered_output, bce_loss, cfg_model["use_cuda"])
             batch_loss += sample_loss
 
