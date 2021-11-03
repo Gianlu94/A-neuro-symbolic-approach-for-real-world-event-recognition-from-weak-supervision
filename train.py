@@ -209,6 +209,7 @@ def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_trai
         batch_loss = 0.
         optimizer.zero_grad()
         for index, sample_train in enumerate(se_train):
+            print(sample_train)
             index += 1
             
             video, duration, se_name, begin_s, end_s = sample_train[0], sample_train[1], sample_train[2], sample_train[3], \
@@ -221,11 +222,10 @@ def train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_trai
             
             # from indices get the clio
             features_se = features_video[begin_f:end_f + 1]
-            
+
             final_output = torch.nn.Sigmoid()(nn_model(features_se.unsqueeze(0))["final_output"]).squeeze()
             
             final_output_transpose = final_output.transpose(0, 1)
-
             # get the model for the current se
             mnz_model = mnz_models[se_name]
             # build minizinc problem by including data

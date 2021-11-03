@@ -84,15 +84,15 @@ if __name__ == '__main__':
 
     if use_cuda:
         nn_model.cuda()
-
-    # train list of se event
-    # se_train = [["video_validation_0000361", 696.47, "high_jump", 101.9, 106.8],...,
-    #             ["video_validation_0000361", 696.47, "high_jump", 112.5, 116.5]]
-    se_train = load_data(path_to_data, cfg_dataset.annotations_file)
     
     # train and test features
     features_train = h5.File(cfg_dataset.combined_train_file, 'r')
     features_test = h5.File(cfg_dataset.combined_test_file, 'r')
+
+    # train list of se event
+    # se_train = [["video_validation_0000361", 696.47, "high_jump", 101.9, 106.8],...,
+    #             ["video_validation_0000361", 696.47, "high_jump", 112.5, 116.5]]
+    se_train = load_data(path_to_data, cfg_dataset.annotations_file, features_train)
 
     train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_train, features_test, nn_model, mnz_models)
     
