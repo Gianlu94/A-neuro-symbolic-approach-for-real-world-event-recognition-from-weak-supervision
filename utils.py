@@ -39,7 +39,7 @@ def get_valid_interval(num_features, duration, interval, begin_cut, end_cut):
 
 
 def get_data(video, duration, se_name, se_intervals, num_features):
-    train_list = []
+    se_list = []
     
     num_se = len(se_intervals)
     
@@ -55,7 +55,7 @@ def get_data(video, duration, se_name, se_intervals, num_features):
                 end_cut_1 = se_intervals[i][0]
             
             begin_cut_1, end_cut_1 = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_1, end_cut_1)
-            train_list.append([video, duration, se_name, begin_cut_1, end_cut_1])
+            se_list.append([video, duration, se_name, begin_cut_1, end_cut_1])
             
             if (i + 1) != (num_se + 1):
                 begin_cut_1 = se_intervals[i][1]
@@ -67,12 +67,12 @@ def get_data(video, duration, se_name, se_intervals, num_features):
                     end_cut_2 = se_intervals[i][0]
 
                 begin_cut_2, end_cut_2 = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_2, end_cut_2)
-                train_list.append([video, duration, se_name, begin_cut_2, end_cut_2])
+                se_list.append([video, duration, se_name, begin_cut_2, end_cut_2])
             
             if (i + 1) != (num_se + 1):
                 begin_cut_2 = se_intervals[i][1]
 
-    return train_list
+    return se_list
 
    
 def load_data(path_to_data, path_to_annotations_json, features):
@@ -106,9 +106,9 @@ def load_data(path_to_data, path_to_annotations_json, features):
             # structured events intervals
             se_intervals = [(row[1]["begin"], row[1]["end"]) for row in se_of_v.iterrows()]
     
-            se_train.extend(get_data(v, duration_of_v, se_name, se_intervals, len(features[v])))
+            se_list.extend(get_data(v, duration_of_v, se_name, se_intervals, len(features[v])))
           
-    return train_list
+    return se_list
 
 
 def convert_to_float_tensor(input):

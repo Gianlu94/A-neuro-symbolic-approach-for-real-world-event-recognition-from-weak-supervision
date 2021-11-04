@@ -16,15 +16,9 @@ if __name__ == '__main__':
     
     # terminals' arguments
     parser.add_argument("--path_to_model", type=str, help="Path to the mlad pre-trained model")
-    parser.add_argument("--path_to_conf", type=str, help="Path to configuration files")
+    parser.add_argument("--path_to_conf", type=str, help="Path to configuration file")
     parser.add_argument("--path_to_mzn", type=str, help="Path to minizinc models")
     parser.add_argument("--path_to_data", type=str, help="Path to train data")
-    
-    parser.add_argument("--model_name", type=str, help="Model to build")
-    parser.add_argument("--num_clips", type=int, help="Number of clips")
-    parser.add_argument("--num_mlad_layers", type=int, help="Number of MLAD layers")
-    parser.add_argument("--dim_of_features", type=int, help="Size of feature vector")
-    parser.add_argument("--eval_mode", type=str, help="Evaluation mode")
     
     args = parser.parse_args()
     
