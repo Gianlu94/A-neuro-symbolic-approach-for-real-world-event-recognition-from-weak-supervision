@@ -19,11 +19,16 @@ def get_valid_interval(num_features, duration, interval, begin_cut, end_cut):
     if end_cut_f - begin_cut_f > 128:
         # length of the structured event
         length_se_f = end_se_f - begin_se_f + 1 # bounds included
+        
         # compute a new begin for the cut
-        new_begin_cut_f = random.randint(begin_se_f - 128 + length_se_f, begin_se_f)
+        tmp_begin = begin_se_f - 128 + length_se_f
+        if begin_se_f - 128 < 0:
+            tmp_begin = 0
+            
+        new_begin_cut_f = random.randint(tmp_begin, begin_se_f)
         partial_length_new_cut = end_se_f - new_begin_cut_f + 1
         # compute the new end for the cut
-        new_end_cut_f = new_begin_cut_f + partial_length_new_cut + random.randint(0, 128-partial_length_new_cut)
+        new_end_cut_f = new_begin_cut_f + partial_length_new_cut + random.randint(0, 127-partial_length_new_cut)
         
         # covert from features vector to seconds
         fps = num_features / duration
@@ -34,7 +39,8 @@ def get_valid_interval(num_features, duration, interval, begin_cut, end_cut):
         assert new_end_cut_f - new_begin_cut_f <= 128
         # check that interval is contained into the new cut
         assert begin_cut <= interval[0] and interval[1] <= end_cut
-        
+        print(begin_cut, end_cut)
+
     return begin_cut, end_cut
 
 
@@ -92,6 +98,7 @@ def load_data(path_to_data, path_to_annotations_json, features):
         se_name = se_name.split(".")[0]
         # take only validation video (to use as training)
         df = df[df["video"].str.contains("validation")]
+
         df.columns = ["video", "begin", "end"]
         
         # get videos
