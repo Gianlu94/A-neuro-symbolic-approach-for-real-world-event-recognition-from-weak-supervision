@@ -86,7 +86,7 @@ if __name__ == '__main__':
     # train list of se event
     # se_train = [["video_validation_0000361", 696.47, "high_jump", 101.9, 106.8],...,
     #             ["video_validation_0000361", 696.47, "high_jump", 112.5, 116.5]]
-    se_train = load_data(path_to_data, cfg_dataset.annotations_file, features_train)
+    se_train = load_data("validation", path_to_data, cfg_dataset.annotations_file, features_train)
 
     train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_train, features_test, nn_model, mnz_models)
     

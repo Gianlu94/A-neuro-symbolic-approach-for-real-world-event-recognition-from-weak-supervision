@@ -10,37 +10,44 @@ import pandas as pd
 
 # se = structured event
 
+
 def get_valid_interval(num_features, duration, interval, begin_cut, end_cut):
     # convert from second to features vector
     begin_cut_f, end_cut_f = convert_indices(num_features, duration, begin_cut, end_cut)
     begin_se_f, end_se_f = convert_indices(num_features, duration, interval[0], interval[1])
-    
+
     # maximum clip length is 128, if the cut is > 128 compute a new one
-    if end_cut_f - begin_cut_f > 128:
+    if (end_cut_f - begin_cut_f) + 1 > 128:
+        
         # length of the structured event
-        length_se_f = end_se_f - begin_se_f + 1 # bounds included
+        length_se_f = end_se_f - begin_se_f + 1 # bounds include
+   
+        remaining = 128 - length_se_f
+        left_offset = random.randint(0, remaining)
+        right_offset = random.randint(0, remaining - left_offset)
+        # new begin and end for the cut
+        new_begin_cut_f = begin_se_f - left_offset
+        new_end_cut_f = end_se_f + right_offset
         
-        # compute a new begin for the cut
-        tmp_begin = begin_se_f - 128 + length_se_f
-        if begin_se_f - 128 < 0:
-            tmp_begin = 0
-            
-        new_begin_cut_f = random.randint(tmp_begin, begin_se_f)
-        partial_length_new_cut = end_se_f - new_begin_cut_f + 1
-        # compute the new end for the cut
-        new_end_cut_f = new_begin_cut_f + partial_length_new_cut + random.randint(0, 127-partial_length_new_cut)
+        if (new_begin_cut_f) < 0:
+            new_begin_cut_f = 0
         
+        if new_end_cut_f > end_cut_f:
+            new_end_cut_f = end_cut_f
+
         # covert from features vector to seconds
         fps = num_features / duration
-        begin_cut = new_begin_cut_f / fps
-        end_cut = new_end_cut_f / fps
-        
+        begin_cut = round(new_begin_cut_f / fps, 2)
+        end_cut = round(new_end_cut_f / fps, 2)
+
+        if end_cut < interval[1] and (int(new_end_cut_f) == int(end_se_f)):
+            end_cut = interval[1]
+            
         # check length of the cut
         assert new_end_cut_f - new_begin_cut_f <= 128
         # check that interval is contained into the new cut
         assert begin_cut <= interval[0] and interval[1] <= end_cut
-        print(begin_cut, end_cut)
-
+       
     return begin_cut, end_cut
 
 
@@ -50,8 +57,8 @@ def get_data(video, duration, se_name, se_intervals, num_features):
     num_se = len(se_intervals)
     
     # two types of cuts
-    begin_cut_1 = 0
-    begin_cut_2 = 0
+    begin_cut_1 = 0.
+    begin_cut_2 = 0.
     
     for i in range(0, num_se + 1):
         if (i + 1) % 2 == 0:
@@ -81,7 +88,7 @@ def get_data(video, duration, se_name, se_intervals, num_features):
     return se_list
 
    
-def load_data(path_to_data, path_to_annotations_json, features):
+def load_data(mode, path_to_data, path_to_annotations_json, features):
     # list containing element of the form <video, duration, se_name, begin, end>
     se_list = []
     
@@ -97,7 +104,7 @@ def load_data(path_to_data, path_to_annotations_json, features):
         # get the name of the structured event by removing the extension
         se_name = se_name.split(".")[0]
         # take only validation video (to use as training)
-        df = df[df["video"].str.contains("validation")]
+        df = df[df["video"].str.contains(mode)]
 
         df.columns = ["video", "begin", "end"]
         
