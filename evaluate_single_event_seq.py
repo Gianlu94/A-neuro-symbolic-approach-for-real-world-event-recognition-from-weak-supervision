@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import random
+import time
 
 import h5py as h5
 import numpy as np
@@ -19,10 +20,37 @@ from mlad.model import build_model
 from train import train_model, build_labels
 from utils import load_data, convert_indices
 
+
+def get_flatted_list(list):
+    flatted_list = [item for sublist in list for item in sublist]
+    return flatted_list
+
+
+def fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes):
+    if se_name == "high_jump":
+        class_of_interest = [
+            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Fall"] - 1,
+            dataset_classes["HighJump"] - 1]
+    elif se_name == "long_jump":
+        class_of_interest = [
+            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Sit"] - 1,
+            dataset_classes["LongJump"] - 1]
     
+    time_points = list(sol[0].values())
+    # index start from 0
+    time_points = [t - 1 for t in time_points]
+    
+    rows = [list(range(time_points[i], time_points[i + 1] + 1)) for i in range(0, len(time_points), 2)]
+    columns = [len(r) * [class_of_interest[i]] for i, r in enumerate(rows)]
+    rows = get_flatted_list(rows)
+    columns = get_flatted_list(columns)
+    
+    assert len(rows) == len(columns)
+    mnz_pred[rows, columns] = 1
+
+
 def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test,
              mnz_models):
-    # TODO: add nn+minizinc evaluation
     # set evaluation mode
     nn_model.eval()
     
@@ -32,6 +60,8 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     f1_threshold = cfg_model["f1_threshold"]
     class_to_evaluate = cfg_model["class_to_evaluate"]
     path_to_nn_output = args.path_to_nn_output
+    
+    num_mnz_models = len(mnz_models.keys())
     
     # check if nn output has been already computed
     nn_output = {}
@@ -43,9 +73,10 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     
     predictions, ground_truth = [], []
 
+    tot_time = 0.
     # iterate on the events
-    for i, sample_test in tqdm(enumerate(se_test)):
-        print("Processing sample {}/{}".format(i + 1, len(se_test)))
+    for i, sample_test in enumerate(se_test):
+        print("\nProcessing sample {}/{}".format(i + 1, len(se_test)), end="")
         if str(sample_test) not in nn_output:
             video, duration, se_name, begin_s, end_s = sample_test[0], sample_test[1], sample_test[2], sample_test[3], \
                                                        sample_test[4]
@@ -96,7 +127,24 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             labels_clip = nn_output[str(sample_test)][1]
 
         outputs = outputs.reshape(-1, 65)
-
+        
+        if eval_type == "nmnz":
+            tot_time_sample = 0.
+            mnz_pred = torch.zeros(labels_clip.shape)
+            output_transpose = outputs.transpose(0, 1)
+            for se_name, mnz_model in mnz_models.items():
+                mnz_problem, _ = build_problem(se_name, mnz_model, output_transpose, dataset_classes)
+                start_time = time.time()
+                sol = pymzn.minizinc(mnz_problem, solver=pymzn.Chuffed())
+                end_time = time.time()
+                fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes)
+                tot_time_sample += end_time - start_time
+            
+            print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} ".format(
+                num_mnz_models, tot_time_sample, tot_time_sample / num_mnz_models))
+            outputs = mnz_pred
+            tot_time += tot_time_sample
+            
         indices = torch.tensor([class_to_evaluate] * outputs.shape[0])
         if use_cuda:
             indices = indices.cuda()
@@ -122,7 +170,10 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     results_actions = precision_recall_fscore_support(ground_truth, predictions, average=None)
     f1_scores, precision, recall = results_actions[2], results_actions[0], results_actions[1]
 
-    print('Epoch: %d, F1-Score: %s' % (epoch, str(f1_scores)), flush=True)
+    if eval_type == "nmnz":
+        print("\n\n Tot time minizinc calls {:.2f}".format(tot_time))
+        
+    print('\n\nEpoch: %d, F1-Score: %s' % (epoch, str(f1_scores)), flush=True)
     print('Epoch: %d, Average Precision: %s' % (epoch, str(avg_precision_score)), flush=True)
     print('Epoch: %d, F1-Score: %4f, mAP: %4f'
           % (epoch, np.nanmean(f1_scores), np.nanmean(avg_precision_score)),
@@ -149,10 +200,10 @@ if __name__ == '__main__':
     
     dataset = "multithumos"
     mode = "test"
-    eval_type = args.path_to_model
+    eval_type = args.eval_type
     path_to_model = args.path_to_model
     path_to_conf = args.path_to_conf
-    path_to_mzn = args.path_to_mzn
+    path_to_mzn = args.path_to_mnz
     path_to_data = args.path_to_data
     path_to_annotations_json = args.path_to_ann
     path_to_nn_output = args.path_to_nn_output
