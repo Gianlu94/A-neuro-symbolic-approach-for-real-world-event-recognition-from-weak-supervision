@@ -29,12 +29,14 @@ def get_flatted_list(list):
 def fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes):
     if se_name == "high_jump":
         class_of_interest = [
-            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Fall"] - 1,
-            dataset_classes["HighJump"] - 1]
+            dataset_classes["HighJump"] - 1,
+            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Fall"] - 1
+        ]
     elif se_name == "long_jump":
         class_of_interest = [
-            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Sit"] - 1,
-            dataset_classes["LongJump"] - 1]
+            dataset_classes["LongJump"] - 1,
+            dataset_classes["Run"] - 1, dataset_classes["Jump"] - 1, dataset_classes["Sit"] - 1
+        ]
     
     time_points = list(sol[0].values())
     # index start from 0
@@ -49,18 +51,35 @@ def fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes):
     mnz_pred[rows, columns] = 1
 
 
-def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test,
-             mnz_models):
+def save_filtered_outputs(sample, eval_type, filtered_outputs, filtered_labels, filtered_outputs_to_save):
+    if sample not in (filtered_outputs_to_save):
+        filtered_outputs_to_save[sample] = {}
+    if "ground_truth" not in filtered_outputs_to_save[sample]:
+        filtered_outputs_to_save[sample]["ground_truth"] = filtered_labels.transpose(0, 1).data.numpy()
+    if eval_type not in filtered_outputs_to_save[sample]:
+        filtered_outputs_to_save[sample][eval_type] = filtered_outputs.transpose(0, 1).data.numpy()
+
+
+def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models):
     # set evaluation mode
     nn_model.eval()
     
     num_clips = cfg_model["num_clips"]
-    eval_mode = cfg_model["eval_mode"]
     use_cuda = cfg_model["use_cuda"]
     f1_threshold = cfg_model["f1_threshold"]
     class_to_evaluate = cfg_model["class_to_evaluate"]
     path_to_nn_output = args.path_to_nn_output
-    
+
+    # later used to get plots
+    filtered_outputs_to_save = {}
+    path_to_visual_results = "./visual_results/"
+    os.makedirs(path_to_visual_results, exist_ok=True)
+
+    path_to_filtered_outputs = path_to_visual_results + "filtered_outputs_{}.pickle".format(cfg_model["mnz_models"])
+    if os.path.exists(path_to_filtered_outputs):
+        with open(path_to_filtered_outputs, "rb") as ffo:
+            filtered_outputs_to_save = pickle.load(ffo)
+
     num_mnz_models = len(mnz_models.keys())
     
     # check if nn output has been already computed
@@ -70,15 +89,15 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     if os.path.exists(path_to_nn_output_file):
         with open(path_to_nn_output_file, "rb") as pf:
             nn_output = pickle.load(pf)
-    
+
     predictions, ground_truth = [], []
 
     tot_time = 0.
     # iterate on the events
     for i, sample_test in enumerate(se_test):
-        print("\nProcessing sample {}/{}".format(i + 1, len(se_test)), end="")
+        print("\nProcessing sample {}  {}/{}  ".format(str(sample_test[0:3]+[sample_test[4]]), i + 1, len(se_test)), end="")
         if str(sample_test) not in nn_output:
-            video, duration, se_name, begin_s, end_s = sample_test[0], sample_test[1], sample_test[2], sample_test[3], \
+            video, duration, se_name, interval_cut, interval_se = sample_test[0], sample_test[1], sample_test[2], sample_test[3], \
                                                        sample_test[4]
             
             # get features for the current video
@@ -92,15 +111,14 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     
             labels_video = Variable(torch.from_numpy(labels_video).type(torch.FloatTensor))
 
-            # convert from seconds to feature vectors
-            begin_f, end_f = convert_indices(features_video.shape[0], duration, begin_s, end_s)
+            # convert interval cut from seconds to feature vectors
+            begin_f, end_f = convert_indices(features_video.shape[0], duration, interval_cut[0], interval_cut[1])
             
             # get clip and its labels
             features_clip = features_video[begin_f:end_f + 1]
             labels_clip = labels_video[begin_f: end_f + 1]
             with torch.no_grad():
                 if num_clips > 0:
-                    eval_mode = eval_mode
                     if len(features_clip) < num_clips:
                         # padding
                         features_to_append = torch.zeros(num_clips - len(features_clip) % num_clips, features_clip.shape[1])
@@ -132,6 +150,7 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             tot_time_sample = 0.
             mnz_pred = torch.zeros(labels_clip.shape)
             output_transpose = outputs.transpose(0, 1)
+            sols = []
             for se_name, mnz_model in mnz_models.items():
                 mnz_problem, _ = build_problem(se_name, mnz_model, output_transpose, dataset_classes)
                 start_time = time.time()
@@ -139,9 +158,12 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
                 end_time = time.time()
                 fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes)
                 tot_time_sample += end_time - start_time
+                sols.append(sol)
             
-            print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} ".format(
+            print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
                 num_mnz_models, tot_time_sample, tot_time_sample / num_mnz_models))
+            for sol in sols: print(sol)
+            
             outputs = mnz_pred
             tot_time += tot_time_sample
             
@@ -153,9 +175,11 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
         filtered_outputs = torch.gather(outputs, 1, indices)
         filtered_labels = torch.gather(labels_clip, 1, indices)
         
+        save_filtered_outputs(str(sample_test), eval_type, filtered_outputs, filtered_labels, filtered_outputs_to_save)
+        
         filtered_outputs = filtered_outputs.data.numpy()
         filtered_labels = filtered_labels.cpu().data.numpy()
-            
+        
         assert len(filtered_outputs) == len(filtered_labels)
         predictions.extend(filtered_outputs)
         ground_truth.extend(filtered_labels)
@@ -183,10 +207,13 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     if not os.path.exists(path_to_nn_output_file):
         with open(path_to_nn_output_file, "wb") as pf:
             pickle.dump(nn_output, pf, protocol=pickle.HIGHEST_PROTOCOL)
+            
+    with open(path_to_filtered_outputs, "wb") as ffo:
+        pickle.dump(filtered_outputs_to_save, ffo, protocol=pickle.HIGHEST_PROTOCOL)
 
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Training ns framework")
+    parser = argparse.ArgumentParser(description="Evaluation on test set")
     
     parser.add_argument("--eval_type", type=str, help="Specify: n (Neural) -- nmnz (Neural + Minizinc)")
     parser.add_argument("--path_to_model", type=str, help="Path to the mlad pretrained model")
@@ -203,7 +230,7 @@ if __name__ == '__main__':
     eval_type = args.eval_type
     path_to_model = args.path_to_model
     path_to_conf = args.path_to_conf
-    path_to_mzn = args.path_to_mnz
+    path_to_mnz = args.path_to_mnz
     path_to_data = args.path_to_data
     path_to_annotations_json = args.path_to_ann
     path_to_nn_output = args.path_to_nn_output
@@ -232,6 +259,8 @@ if __name__ == '__main__':
     # evaluation is done only to a subset of classes (depending on the events we manage)
     cfg_model["class_to_evaluate"] = [dataset_classes[class_name] - 1 for class_name in cfg_model["class_to_evaluate"]]
     cfg_model["path_to_nn_output"] = path_to_nn_output
+    # name of the folder of the mnz model to evaluate
+    cfg_model["mnz_models"] = path_to_mnz.split("/")[-2]
 
     cfg_model["use_cuda"] = use_cuda
     
@@ -250,11 +279,11 @@ if __name__ == '__main__':
     nn_model.load_state_dict(state["state_dict"])
     
     # load mnz model for each structured event (se)
-    mnz_files_names = os.listdir(path_to_mzn)
+    mnz_files_names = os.listdir(path_to_mnz)
     mnz_models = {}
     for mnz_file_name in mnz_files_names:
         se_name = mnz_file_name.split(".")[0]
-        with open(path_to_mzn + mnz_file_name, "r") as mzn_file:
+        with open(path_to_mnz + mnz_file_name, "r") as mzn_file:
             mnz_models[se_name] = mzn_file.read()
     
     if use_cuda:
