@@ -47,8 +47,14 @@ def get_valid_interval(num_features, duration, interval, begin_cut, end_cut):
         assert new_end_cut_f - new_begin_cut_f <= 128
         # check that interval is contained into the new cut
         assert begin_cut <= interval[0] and interval[1] <= end_cut
-       
-    return begin_cut, end_cut
+    else:
+        new_begin_cut_f = begin_cut_f
+    
+    # begin and end of the event in the clip
+    begin_se_fc = begin_se_f - new_begin_cut_f
+    end_se_fc = begin_se_fc + end_se_f - begin_se_f
+
+    return begin_cut, end_cut, begin_se_fc, end_se_fc
 
 
 def get_data(video, duration, se_name, se_intervals, num_features):
@@ -67,8 +73,8 @@ def get_data(video, duration, se_name, se_intervals, num_features):
             else:
                 end_cut_1 = se_intervals[i][0]
             
-            begin_cut_1, end_cut_1 = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_1, end_cut_1)
-            se_list.append([video, duration, se_name, begin_cut_1, end_cut_1])
+            begin_cut_1, end_cut_1, begin_se_f, end_se_f = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_1, end_cut_1)
+            se_list.append([video, duration, se_name, (begin_cut_1, end_cut_1), (begin_se_f, end_se_f)])
             
             if (i + 1) != (num_se + 1):
                 begin_cut_1 = se_intervals[i][1]
@@ -79,8 +85,8 @@ def get_data(video, duration, se_name, se_intervals, num_features):
                 else:
                     end_cut_2 = se_intervals[i][0]
 
-                begin_cut_2, end_cut_2 = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_2, end_cut_2)
-                se_list.append([video, duration, se_name, begin_cut_2, end_cut_2])
+                begin_cut_2, end_cut_2, begin_se_f, end_se_f = get_valid_interval(num_features, duration, se_intervals[i - 1], begin_cut_2, end_cut_2)
+                se_list.append([video, duration, se_name, (begin_cut_2, end_cut_2), (begin_se_f, end_se_f)])
             
             if (i + 1) != (num_se + 1):
                 begin_cut_2 = se_intervals[i][1]
