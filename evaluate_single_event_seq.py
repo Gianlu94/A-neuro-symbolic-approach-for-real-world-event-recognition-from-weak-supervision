@@ -60,6 +60,26 @@ def save_filtered_outputs(sample, eval_type, filtered_outputs, filtered_labels, 
         filtered_outputs_to_save[sample][eval_type] = filtered_outputs.transpose(0, 1).data.numpy()
 
 
+def get_best_sol(sols, criteria, output, dataset_classes):
+    best_sol = None
+    scores = torch.zeros(len(sols))
+    for idx_sol, sol in enumerate(sols):
+        begin_name = list(sol[0].keys())[0]
+        if "HJ" in begin_name:
+            action = "HighJump"
+        elif "LJ" in begin_name:
+            action = "LongJump"
+        
+        mnz_pred = list(sol[0].values())
+        se_begin, se_end = mnz_pred[0], mnz_pred[1]
+        if criteria == "max_avg":
+            scores[idx_sol] = torch.mean(output[dataset_classes[action] - 1, se_begin:se_end+1])
+    
+    best_sol = sols[torch.argmax(scores)]
+    
+    return best_sol
+        
+    
 def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models, criteria):
     # set evaluation mode
     nn_model.eval()
@@ -159,13 +179,18 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             output_transpose = outputs.transpose(0, 1)
             sols = []
             for se_name, mnz_model in mnz_models.items():
+                print()
                 mnz_problem, _ = build_problem(se_name, mnz_model, output_transpose, dataset_classes)
                 start_time = time.time()
                 sol = pymzn.minizinc(mnz_problem, solver=pymzn.Chuffed())
                 end_time = time.time()
-                fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes)
+
                 tot_time_sample += end_time - start_time
                 sols.append(sol)
+            
+            # get best solution
+            best_sol = get_best_sol(sols, criteria, output_transpose, dataset_classes)
+            fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes)
             
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
                 num_mnz_models, tot_time_sample, tot_time_sample / num_mnz_models))
