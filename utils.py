@@ -77,13 +77,10 @@ def compute_valid_cut(se_list):
             se_list[i][4] = tuple(new_cut)
             
     
-def load_data(mode, path_to_data, path_to_annotations_json, features):
+def load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_json, features):
     # list containing element of the form <video, duration_s, num_features, se_name, cut_f, event_f, event_s>
     # *_s -> seconds, *_f -> features
     se_list = []
-    
-    path_to_filtered_data = path_to_data
-    path_to_data = "./datasets/Multi-THUMOS/all_se_events/"
     
     # load annotations
     with open(path_to_annotations_json, "r") as f:

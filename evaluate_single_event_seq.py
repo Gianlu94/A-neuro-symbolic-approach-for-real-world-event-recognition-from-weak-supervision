@@ -60,7 +60,7 @@ def save_filtered_outputs(sample, eval_type, filtered_outputs, filtered_labels, 
         filtered_outputs_to_save[sample][eval_type] = filtered_outputs.transpose(0, 1).data.numpy()
 
 
-def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models):
+def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models, criteria):
     # set evaluation mode
     nn_model.eval()
     
@@ -226,10 +226,11 @@ if __name__ == '__main__':
     parser.add_argument("--path_to_model", type=str, help="Path to the mlad pretrained model")
     parser.add_argument("--path_to_conf", type=str, help="Path to configuration file")
     parser.add_argument("--path_to_mnz", type=str, help="Path to minizinc models")
-    parser.add_argument("--path_to_data", type=str, help="Path to se files")
+    parser.add_argument("--path_to_data", type=str, help="Path to all se files")
+    parser.add_argument("--path_to_filtered_data", type=str, help="Path to filtered se files")
     parser.add_argument("--path_to_ann", type=str, help="Path to annotation json")
     parser.add_argument("--path_to_nn_output", type=str, help="Path to the pre-computed nn output")
-    
+    parser.add_argument("--criteria", type=str, help="criteria to select se for a clip (a=avg)")
     args = parser.parse_args()
     
     dataset = "multithumos"
@@ -239,8 +240,10 @@ if __name__ == '__main__':
     path_to_conf = args.path_to_conf
     path_to_mnz = args.path_to_mnz
     path_to_data = args.path_to_data
+    path_to_filtered_data = args.path_to_filtered_data
     path_to_annotations_json = args.path_to_ann
     path_to_nn_output = args.path_to_nn_output
+    criteria = args.criteria
     
     use_cuda = True if torch.cuda.is_available() else False
     
@@ -298,8 +301,8 @@ if __name__ == '__main__':
     
     # load features and se test events
     features_test = h5.File(cfg_dataset.combined_test_file, 'r')
-    se_test = load_data(mode, path_to_data, path_to_annotations_json, features_test)
+    se_test = load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_json, features_test)
     
     # epoch of the model to load
     epoch = 50
-    evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models)
+    evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models, criteria)
