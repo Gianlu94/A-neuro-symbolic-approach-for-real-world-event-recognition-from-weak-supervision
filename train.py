@@ -15,7 +15,7 @@ from tensorboardX import SummaryWriter
 from utils import convert_to_float_tensor, convert_indices
 from minizinc.my_functions import build_problem
 
-
+# TODO: Fix this file later
 def build_labels(video_id, annotations_file, num_features, num_classes, add_background=False):
     annotations = json.load(open(annotations_file, 'r'))
     labels = np.zeros((num_features, num_classes), np.float32)

@@ -95,28 +95,34 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     tot_time = 0.
     # iterate on the events
     for i, sample_test in enumerate(se_test):
-        print("\nProcessing sample {}  {}/{}  ".format(str(sample_test[0:3]+[sample_test[4]]), i + 1, len(se_test)), end="")
+        # se happening in the clip
+        cut = sample_test[4]
+        event = sample_test[5]
+        begin_se_c = event[0] - cut[0]
+        end_se_c = begin_se_c + event[1] - event[0]
+        
+        sample_test.append((begin_se_c, end_se_c))
+        
+        print("\nProcessing sample [{}, {}, {}]  {}/{}  ".format(sample_test[0], sample_test[3], sample_test[-1],
+                                                                  i + 1, len(se_test)), end="")
         if str(sample_test) not in nn_output:
-            video, duration, se_name, interval_cut, interval_se = sample_test[0], sample_test[1], sample_test[2], sample_test[3], \
-                                                       sample_test[4]
             
+            video, se_name, interval_cut_f = sample_test[0], sample_test[3], sample_test[4]
+
             # get features for the current video
             features_video = features_test[video]
             features_video = np.array(features_video)
             features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
-        
+
             # get labels
             labels_video = build_labels(
                 video, cfg_dataset.annotations_file, len(features_video), cfg_dataset.num_classes, False)
     
             labels_video = Variable(torch.from_numpy(labels_video).type(torch.FloatTensor))
-
-            # convert interval cut from seconds to feature vectors
-            begin_f, end_f = convert_indices(features_video.shape[0], duration, interval_cut[0], interval_cut[1])
             
             # get clip and its labels
-            features_clip = features_video[begin_f:end_f + 1]
-            labels_clip = labels_video[begin_f: end_f + 1]
+            features_clip = features_video[interval_cut_f[0]:interval_cut_f[1]+1]
+            labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1]+1]
             with torch.no_grad():
                 if num_clips > 0:
                     if len(features_clip) < num_clips:
@@ -139,6 +145,7 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
                 outputs = out['final_output']
 
                 outputs = nn.Sigmoid()(outputs)
+                # save network outputs
                 nn_output[str(sample_test)] = (outputs, labels_clip)
         else:
             outputs = nn_output[str(sample_test)][0]
