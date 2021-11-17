@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import os
 import pickle
@@ -19,6 +20,22 @@ from mlad.configuration import build_config
 from mlad.model import build_model
 from train import train_model, build_labels
 from utils import load_data, convert_indices
+
+
+avg_actions_durations_s = {
+    "HighJump": {
+        "avgHJ": 4.2624,
+        "avgR": 2.3675,
+        "avgJ": 0.6512,
+        "avgF": 0.8319,
+    },
+    "LongJump": {
+        "avgLJ": 6.9693,
+        "avgR": 3.6600,
+        "avgJ": 1.3041,
+        "avgS": 2.3105,
+    }
+}
 
 
 def get_flatted_list(list):
@@ -60,8 +77,22 @@ def save_filtered_outputs(sample, eval_type, filtered_outputs, filtered_labels, 
         filtered_outputs_to_save[sample][eval_type] = filtered_outputs.transpose(0, 1).data.numpy()
 
 
+def get_avg_actions_durations_in_f(se_name, duration, features):
+    fps = features / duration
+    avg_actions_durations_f = {}
+
+    if se_name == "high_jump":
+        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["HighJump"])
+    elif se_name == "long_jump":
+        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["LongJump"])
+
+    for action in avg_actions_durations_f.keys():
+        avg_actions_durations_f[action] = int(avg_actions_durations_f[action] * fps)
+            
+    return avg_actions_durations_f
+
+   
 def get_best_sol(sols, criteria, output, dataset_classes):
-    best_sol = None
     scores = torch.zeros(len(sols))
     actions = []
     for idx_sol, sol in enumerate(sols):
@@ -83,6 +114,11 @@ def get_best_sol(sols, criteria, output, dataset_classes):
         
     
 def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models, criteria):
+    type_models = ""
+    if "avg" in eval_type:
+        eval_type = "nmnz"
+        type_models = "avg"
+        
     # set evaluation mode
     nn_model.eval()
     
@@ -117,6 +153,10 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     tot_time = 0.
     # iterate on the events
     for i, sample_test in enumerate(se_test):
+        breakpoint()
+        duration = sample_test[1]
+        num_features = sample_test[2]
+        
         # se happening in the clip
         cut = sample_test[4]
         event = sample_test[5]
@@ -181,7 +221,10 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             output_transpose = outputs.transpose(0, 1)
             sols = []
             for se_name, mnz_model in mnz_models.items():
-                mnz_problem, _ = build_problem(se_name, mnz_model, output_transpose, dataset_classes)
+                avg_actions_durations_f = None
+                if type_models == "avg":
+                    avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features)
+                mnz_problem, _ = build_problem(se_name, mnz_model, output_transpose, dataset_classes, avg_actions_durations_f)
                 start_time = time.time()
                 sol = pymzn.minizinc(mnz_problem, solver=pymzn.Chuffed())
                 end_time = time.time()

@@ -19,7 +19,7 @@ def _create_actions_matrix(actions_predictions):
     return mnz_array + content
 
 
-def build_problem(se_name, model, nn_output, classes):
+def build_problem(se_name,  model, nn_output, classes, avg_actions_durations_in_f):
     # index start from 1 in array (no zero)
     se_begin = 1
     se_end = nn_output.shape[1]
@@ -36,6 +36,11 @@ def build_problem(se_name, model, nn_output, classes):
         actions_predictions = torch.stack((nn_output[classes["Run"] - 1], nn_output[classes["Jump"] - 1],
                                            nn_output[classes["Sit"] - 1], nn_output[classes["LongJump"] - 1]), 0)
     data += _create_actions_matrix(actions_predictions)
+
+    if avg_actions_durations_in_f is not None:
+        print("\n" + str(avg_actions_durations_in_f))
+        for action, avg_duration in avg_actions_durations_in_f.items():
+            data += "{} = {};\n".format(action, avg_duration)
 
     return model + data, actions_predictions
     
