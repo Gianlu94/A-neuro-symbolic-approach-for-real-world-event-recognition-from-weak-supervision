@@ -77,8 +77,8 @@ def save_filtered_outputs(sample, eval_type, filtered_outputs, filtered_labels, 
         filtered_outputs_to_save[sample][eval_type] = filtered_outputs.transpose(0, 1).data.numpy()
 
 
-def get_avg_actions_durations_in_f(se_name, duration, features):
-    fps = features / duration
+def get_avg_actions_durations_in_f(se_name, duration, num_features):
+    fps = num_features / duration
     avg_actions_durations_f = {}
 
     if se_name == "high_jump":
@@ -87,8 +87,14 @@ def get_avg_actions_durations_in_f(se_name, duration, features):
         avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["LongJump"])
 
     for action in avg_actions_durations_f.keys():
-        avg_actions_durations_f[action] = int(avg_actions_durations_f[action] * fps)
-            
+        avg_action_f = 0
+        for i in range(num_features):
+            if i/fps >= 0. and i/fps <= avg_actions_durations_f[action]:
+                avg_action_f += 1
+            else:
+                break
+        avg_actions_durations_f[action] = avg_action_f
+    
     return avg_actions_durations_f
 
    
