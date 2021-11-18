@@ -1,0 +1,443 @@
+
+Processing sample [video_test_0000188, high_jump, (1, 15)]  1/87  --- (2 calls to mnz) -- tot_time = 1.92 - avg_time = 0.96 
+
+[{'bLJ': 1, 'eLJ': 19, 'bR': 1, 'eR': 11, 'bJ': 12, 'eJ': 17, 'bS': 18, 'eS': 19}]
+[{'bHJ': 1, 'eHJ': 19, 'bR': 1, 'eR': 11, 'bJ': 12, 'eJ': 17, 'bF': 18, 'eF': 19}]
+
+Processing sample [video_test_0000188, high_jump, (9, 22)]  2/87  --- (2 calls to mnz) -- tot_time = 2.93 - avg_time = 1.47 
+
+[{'bLJ': 1, 'eLJ': 91, 'bR': 1, 'eR': 85, 'bJ': 86, 'eJ': 89, 'bS': 90, 'eS': 91}]
+[{'bHJ': 1, 'eHJ': 89, 'bR': 1, 'eR': 83, 'bJ': 84, 'eJ': 85, 'bF': 86, 'eF': 89}]
+
+Processing sample [video_test_0000220, high_jump, (29, 36)]  3/87  --- (2 calls to mnz) -- tot_time = 2.08 - avg_time = 1.04 
+
+[{'bLJ': 9, 'eLJ': 43, 'bR': 9, 'eR': 30, 'bJ': 31, 'eJ': 41, 'bS': 42, 'eS': 43}]
+[{'bHJ': 1, 'eHJ': 43, 'bR': 1, 'eR': 30, 'bJ': 31, 'eJ': 41, 'bF': 42, 'eF': 43}]
+
+Processing sample [video_test_0000220, high_jump, (4, 10)]  4/87  --- (2 calls to mnz) -- tot_time = 1.45 - avg_time = 0.72 
+
+[{'bLJ': 1, 'eLJ': 18, 'bR': 1, 'eR': 14, 'bJ': 15, 'eJ': 16, 'bS': 17, 'eS': 18}]
+[{'bHJ': 1, 'eHJ': 12, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bF': 5, 'eF': 12}]
+
+Processing sample [video_test_0000220, high_jump, (8, 27)]  5/87  --- (2 calls to mnz) -- tot_time = 2.86 - avg_time = 1.43 
+
+[{'bLJ': 1, 'eLJ': 77, 'bR': 1, 'eR': 24, 'bJ': 25, 'eJ': 26, 'bS': 27, 'eS': 77}]
+[{'bHJ': 1, 'eHJ': 97, 'bR': 1, 'eR': 93, 'bJ': 94, 'eJ': 95, 'bF': 96, 'eF': 97}]
+
+Processing sample [video_test_0000220, high_jump, (64, 72)]  6/87  --- (2 calls to mnz) -- tot_time = 4.26 - avg_time = 2.13 
+
+[{'bLJ': 61, 'eLJ': 77, 'bR': 61, 'eR': 62, 'bJ': 63, 'eJ': 75, 'bS': 76, 'eS': 77}]
+[{'bHJ': 1, 'eHJ': 78, 'bR': 1, 'eR': 62, 'bJ': 63, 'eJ': 76, 'bF': 77, 'eF': 78}]
+
+Processing sample [video_test_0000220, high_jump, (4, 18)]  7/87  --- (2 calls to mnz) -- tot_time = 1.44 - avg_time = 0.72 
+
+[{'bLJ': 5, 'eLJ': 16, 'bR': 5, 'eR': 11, 'bJ': 12, 'eJ': 13, 'bS': 14, 'eS': 16}]
+[{'bHJ': 3, 'eHJ': 24, 'bR': 3, 'eR': 5, 'bJ': 6, 'eJ': 7, 'bF': 8, 'eF': 24}]
+
+Processing sample [video_test_0000308, high_jump, (9, 20)]  8/87  --- (2 calls to mnz) -- tot_time = 2.55 - avg_time = 1.27 
+
+[{'bLJ': 3, 'eLJ': 101, 'bR': 3, 'eR': 16, 'bJ': 17, 'eJ': 19, 'bS': 20, 'eS': 101}]
+[{'bHJ': 1, 'eHJ': 117, 'bR': 1, 'eR': 113, 'bJ': 114, 'eJ': 115, 'bF': 116, 'eF': 117}]
+
+Processing sample [video_test_0000308, high_jump, (3, 12)]  9/87  --- (2 calls to mnz) -- tot_time = 2.33 - avg_time = 1.16 
+
+[{'bLJ': 2, 'eLJ': 42, 'bR': 2, 'eR': 38, 'bJ': 39, 'eJ': 40, 'bS': 41, 'eS': 42}]
+[{'bHJ': 1, 'eHJ': 42, 'bR': 1, 'eR': 38, 'bJ': 39, 'eJ': 40, 'bF': 41, 'eF': 42}]
+
+Processing sample [video_test_0000442, high_jump, (0, 19)]  10/87  --- (2 calls to mnz) -- tot_time = 2.72 - avg_time = 1.36 
+
+[{'bLJ': 1, 'eLJ': 51, 'bR': 1, 'eR': 47, 'bJ': 48, 'eJ': 49, 'bS': 50, 'eS': 51}]
+[{'bHJ': 1, 'eHJ': 51, 'bR': 1, 'eR': 47, 'bJ': 48, 'eJ': 49, 'bF': 50, 'eF': 51}]
+
+Processing sample [video_test_0000538, high_jump, (1, 12)]  11/87  --- (2 calls to mnz) -- tot_time = 1.74 - avg_time = 0.87 
+
+[{'bLJ': 1, 'eLJ': 20, 'bR': 1, 'eR': 16, 'bJ': 17, 'eJ': 18, 'bS': 19, 'eS': 20}]
+[{'bHJ': 1, 'eHJ': 27, 'bR': 1, 'eR': 16, 'bJ': 24, 'eJ': 25, 'bF': 26, 'eF': 27}]
+
+Processing sample [video_test_0000538, high_jump, (5, 22)]  12/87  --- (2 calls to mnz) -- tot_time = 1.64 - avg_time = 0.82 
+
+[{'bLJ': 10, 'eLJ': 24, 'bR': 10, 'eR': 11, 'bJ': 12, 'eJ': 22, 'bS': 23, 'eS': 24}]
+[{'bHJ': 1, 'eHJ': 26, 'bR': 1, 'eR': 11, 'bJ': 12, 'eJ': 17, 'bF': 18, 'eF': 26}]
+
+Processing sample [video_test_0000538, high_jump, (2, 14)]  13/87  --- (2 calls to mnz) -- tot_time = 1.62 - avg_time = 0.81 
+
+[{'bLJ': 1, 'eLJ': 15, 'bR': 1, 'eR': 6, 'bJ': 7, 'eJ': 13, 'bS': 14, 'eS': 15}]
+[{'bHJ': 1, 'eHJ': 35, 'bR': 1, 'eR': 6, 'bJ': 7, 'eJ': 9, 'bF': 10, 'eF': 35}]
+
+Processing sample [video_test_0000538, high_jump, (8, 21)]  14/87  --- (2 calls to mnz) -- tot_time = 1.63 - avg_time = 0.81 
+
+[{'bLJ': 1, 'eLJ': 28, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 28}]
+[{'bHJ': 1, 'eHJ': 25, 'bR': 1, 'eR': 14, 'bJ': 15, 'eJ': 16, 'bF': 17, 'eF': 25}]
+
+Processing sample [video_test_0000538, high_jump, (6, 21)]  15/87  --- (2 calls to mnz) -- tot_time = 1.99 - avg_time = 1.00 
+
+[{'bLJ': 6, 'eLJ': 65, 'bR': 6, 'eR': 12, 'bJ': 13, 'eJ': 20, 'bS': 21, 'eS': 65}]
+[{'bHJ': 1, 'eHJ': 27, 'bR': 1, 'eR': 12, 'bJ': 13, 'eJ': 17, 'bF': 18, 'eF': 27}]
+
+Processing sample [video_test_0000538, high_jump, (45, 56)]  16/87  --- (2 calls to mnz) -- tot_time = 2.46 - avg_time = 1.23 
+
+[{'bLJ': 1, 'eLJ': 76, 'bR': 1, 'eR': 72, 'bJ': 73, 'eJ': 74, 'bS': 75, 'eS': 76}]
+[{'bHJ': 1, 'eHJ': 76, 'bR': 1, 'eR': 72, 'bJ': 73, 'eJ': 74, 'bF': 75, 'eF': 76}]
+
+Processing sample [video_test_0000538, high_jump, (14, 28)]  17/87  --- (2 calls to mnz) -- tot_time = 2.53 - avg_time = 1.26 
+
+[{'bLJ': 3, 'eLJ': 36, 'bR': 3, 'eR': 22, 'bJ': 23, 'eJ': 34, 'bS': 35, 'eS': 36}]
+[{'bHJ': 1, 'eHJ': 36, 'bR': 1, 'eR': 22, 'bJ': 23, 'eJ': 34, 'bF': 35, 'eF': 36}]
+
+Processing sample [video_test_0000538, high_jump, (9, 18)]  18/87  --- (2 calls to mnz) -- tot_time = 1.72 - avg_time = 0.86 
+
+[{'bLJ': 8, 'eLJ': 27, 'bR': 8, 'eR': 13, 'bJ': 14, 'eJ': 25, 'bS': 26, 'eS': 27}]
+[{'bHJ': 1, 'eHJ': 31, 'bR': 1, 'eR': 13, 'bJ': 14, 'eJ': 15, 'bF': 16, 'eF': 31}]
+
+Processing sample [video_test_0000538, high_jump, (5, 14)]  19/87  --- (2 calls to mnz) -- tot_time = 2.49 - avg_time = 1.25 
+
+[{'bLJ': 6, 'eLJ': 71, 'bR': 6, 'eR': 67, 'bJ': 68, 'eJ': 69, 'bS': 70, 'eS': 71}]
+[{'bHJ': 1, 'eHJ': 71, 'bR': 1, 'eR': 67, 'bJ': 68, 'eJ': 69, 'bF': 70, 'eF': 71}]
+
+Processing sample [video_test_0000538, high_jump, (10, 21)]  20/87  --- (2 calls to mnz) -- tot_time = 2.59 - avg_time = 1.30 
+
+[{'bLJ': 9, 'eLJ': 106, 'bR': 9, 'eR': 102, 'bJ': 103, 'eJ': 104, 'bS': 105, 'eS': 106}]
+[{'bHJ': 1, 'eHJ': 128, 'bR': 1, 'eR': 102, 'bJ': 125, 'eJ': 126, 'bF': 127, 'eF': 128}]
+
+Processing sample [video_test_0000538, high_jump, (74, 84)]  21/87  --- (2 calls to mnz) -- tot_time = 3.00 - avg_time = 1.50 
+
+[{'bLJ': 5, 'eLJ': 106, 'bR': 5, 'eR': 102, 'bJ': 103, 'eJ': 104, 'bS': 105, 'eS': 106}]
+[{'bHJ': 1, 'eHJ': 106, 'bR': 1, 'eR': 102, 'bJ': 103, 'eJ': 104, 'bF': 105, 'eF': 106}]
+
+Processing sample [video_test_0000839, high_jump, (35, 43)]  22/87  --- (2 calls to mnz) -- tot_time = 2.19 - avg_time = 1.09 
+
+[{'bLJ': 33, 'eLJ': 71, 'bR': 33, 'eR': 50, 'bJ': 51, 'eJ': 52, 'bS': 53, 'eS': 71}]
+[{'bHJ': 32, 'eHJ': 76, 'bR': 32, 'eR': 72, 'bJ': 73, 'eJ': 74, 'bF': 75, 'eF': 76}]
+
+Processing sample [video_test_0000839, high_jump, (27, 43)]  23/87  --- (2 calls to mnz) -- tot_time = 2.53 - avg_time = 1.27 
+
+[{'bLJ': 1, 'eLJ': 29, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 29}]
+[{'bHJ': 1, 'eHJ': 51, 'bR': 1, 'eR': 47, 'bJ': 48, 'eJ': 49, 'bF': 50, 'eF': 51}]
+
+Processing sample [video_test_0000839, high_jump, (2, 7)]  24/87  --- (2 calls to mnz) -- tot_time = 1.59 - avg_time = 0.80 
+
+[{'bLJ': 1, 'eLJ': 13, 'bR': 1, 'eR': 3, 'bJ': 4, 'eJ': 8, 'bS': 9, 'eS': 13}]
+[{'bHJ': 1, 'eHJ': 10, 'bR': 1, 'eR': 3, 'bJ': 4, 'eJ': 8, 'bF': 9, 'eF': 10}]
+
+Processing sample [video_test_0000839, high_jump, (6, 23)]  25/87  --- (2 calls to mnz) -- tot_time = 3.36 - avg_time = 1.68 
+
+[{'bLJ': 6, 'eLJ': 30, 'bR': 6, 'eR': 21, 'bJ': 22, 'eJ': 28, 'bS': 29, 'eS': 30}]
+[{'bHJ': 1, 'eHJ': 30, 'bR': 1, 'eR': 21, 'bJ': 22, 'eJ': 28, 'bF': 29, 'eF': 30}]
+
+Processing sample [video_test_0000839, high_jump, (8, 14)]  26/87  --- (2 calls to mnz) -- tot_time = 4.34 - avg_time = 2.17 
+
+[{'bLJ': 33, 'eLJ': 76, 'bR': 33, 'eR': 40, 'bJ': 47, 'eJ': 48, 'bS': 49, 'eS': 76}]
+[{'bHJ': 1, 'eHJ': 81, 'bR': 1, 'eR': 77, 'bJ': 78, 'eJ': 79, 'bF': 80, 'eF': 81}]
+
+Processing sample [video_test_0000839, high_jump, (61, 81)]  27/87  --- (2 calls to mnz) -- tot_time = 5.72 - avg_time = 2.86 
+
+[{'bLJ': 2, 'eLJ': 61, 'bR': 2, 'eR': 25, 'bJ': 32, 'eJ': 33, 'bS': 34, 'eS': 61}]
+[{'bHJ': 1, 'eHJ': 92, 'bR': 1, 'eR': 88, 'bJ': 89, 'eJ': 90, 'bF': 91, 'eF': 92}]
+
+Processing sample [video_test_0000839, high_jump, (5, 19)]  28/87  --- (2 calls to mnz) -- tot_time = 3.56 - avg_time = 1.78 
+
+[{'bLJ': 26, 'eLJ': 31, 'bR': 26, 'eR': 27, 'bJ': 28, 'eJ': 29, 'bS': 30, 'eS': 31}]
+[{'bHJ': 1, 'eHJ': 25, 'bR': 1, 'eR': 13, 'bJ': 14, 'eJ': 23, 'bF': 24, 'eF': 25}]
+
+Processing sample [video_test_0000839, high_jump, (6, 14)]  29/87  --- (2 calls to mnz) -- tot_time = 3.32 - avg_time = 1.66 
+
+[{'bLJ': 19, 'eLJ': 30, 'bR': 19, 'eR': 26, 'bJ': 27, 'eJ': 28, 'bS': 29, 'eS': 30}]
+[{'bHJ': 1, 'eHJ': 30, 'bR': 1, 'eR': 26, 'bJ': 27, 'eJ': 28, 'bF': 29, 'eF': 30}]
+
+Processing sample [video_test_0000839, high_jump, (10, 29)]  30/87  --- (2 calls to mnz) -- tot_time = 3.29 - avg_time = 1.65 
+
+[{'bLJ': 3, 'eLJ': 29, 'bR': 3, 'eR': 22, 'bJ': 23, 'eJ': 27, 'bS': 28, 'eS': 29}]
+[{'bHJ': 1, 'eHJ': 46, 'bR': 1, 'eR': 42, 'bJ': 43, 'eJ': 44, 'bF': 45, 'eF': 46}]
+
+Processing sample [video_test_0000839, high_jump, (11, 29)]  31/87  --- (2 calls to mnz) -- tot_time = 3.04 - avg_time = 1.52 
+
+[{'bLJ': 1, 'eLJ': 46, 'bR': 1, 'eR': 42, 'bJ': 43, 'eJ': 44, 'bS': 45, 'eS': 46}]
+[{'bHJ': 1, 'eHJ': 46, 'bR': 1, 'eR': 42, 'bJ': 43, 'eJ': 44, 'bF': 45, 'eF': 46}]
+
+Processing sample [video_test_0000839, high_jump, (11, 31)]  32/87  --- (2 calls to mnz) -- tot_time = 3.34 - avg_time = 1.67 
+
+[{'bLJ': 1, 'eLJ': 59, 'bR': 1, 'eR': 24, 'bJ': 25, 'eJ': 32, 'bS': 33, 'eS': 59}]
+[{'bHJ': 1, 'eHJ': 34, 'bR': 1, 'eR': 24, 'bJ': 25, 'eJ': 32, 'bF': 33, 'eF': 34}]
+
+Processing sample [video_test_0000839, high_jump, (44, 64)]  33/87  --- (2 calls to mnz) -- tot_time = 2.67 - avg_time = 1.34 
+
+[{'bLJ': 1, 'eLJ': 44, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 44}]
+[{'bHJ': 1, 'eHJ': 67, 'bR': 1, 'eR': 58, 'bJ': 59, 'eJ': 61, 'bF': 62, 'eF': 67}]
+
+Processing sample [video_test_0000839, high_jump, (6, 22)]  34/87  --- (2 calls to mnz) -- tot_time = 2.63 - avg_time = 1.31 
+
+[{'bLJ': 3, 'eLJ': 44, 'bR': 3, 'eR': 40, 'bJ': 41, 'eJ': 42, 'bS': 43, 'eS': 44}]
+[{'bHJ': 1, 'eHJ': 44, 'bR': 1, 'eR': 40, 'bJ': 41, 'eJ': 42, 'bF': 43, 'eF': 44}]
+
+Processing sample [video_test_0000839, high_jump, (11, 27)]  35/87  --- (2 calls to mnz) -- tot_time = 7.47 - avg_time = 3.74 
+
+[{'bLJ': 10, 'eLJ': 39, 'bR': 10, 'eR': 22, 'bJ': 23, 'eJ': 25, 'bS': 26, 'eS': 39}]
+[{'bHJ': 1, 'eHJ': 50, 'bR': 1, 'eR': 46, 'bJ': 47, 'eJ': 48, 'bF': 49, 'eF': 50}]
+
+Processing sample [video_test_0000839, high_jump, (5, 29)]  36/87  --- (2 calls to mnz) -- tot_time = 3.91 - avg_time = 1.96 
+
+[{'bLJ': 1, 'eLJ': 33, 'bR': 1, 'eR': 23, 'bJ': 24, 'eJ': 29, 'bS': 30, 'eS': 33}]
+[{'bHJ': 1, 'eHJ': 33, 'bR': 1, 'eR': 23, 'bJ': 24, 'eJ': 31, 'bF': 32, 'eF': 33}]
+
+Processing sample [video_test_0000839, high_jump, (6, 14)]  37/87  --- (2 calls to mnz) -- tot_time = 1.80 - avg_time = 0.90 
+
+[{'bLJ': 2, 'eLJ': 23, 'bR': 2, 'eR': 9, 'bJ': 10, 'eJ': 14, 'bS': 15, 'eS': 23}]
+[{'bHJ': 1, 'eHJ': 19, 'bR': 1, 'eR': 9, 'bJ': 10, 'eJ': 12, 'bF': 13, 'eF': 19}]
+
+Processing sample [video_test_0000839, high_jump, (6, 22)]  38/87  --- (2 calls to mnz) -- tot_time = 3.43 - avg_time = 1.71 
+
+[{'bLJ': 5, 'eLJ': 29, 'bR': 5, 'eR': 17, 'bJ': 18, 'eJ': 21, 'bS': 22, 'eS': 29}]
+[{'bHJ': 1, 'eHJ': 39, 'bR': 1, 'eR': 35, 'bJ': 36, 'eJ': 37, 'bF': 38, 'eF': 39}]
+
+Processing sample [video_test_0000839, high_jump, (11, 25)]  39/87  --- (2 calls to mnz) -- tot_time = 2.45 - avg_time = 1.23 
+
+[{'bLJ': 2, 'eLJ': 40, 'bR': 2, 'eR': 36, 'bJ': 37, 'eJ': 38, 'bS': 39, 'eS': 40}]
+[{'bHJ': 1, 'eHJ': 33, 'bR': 1, 'eR': 21, 'bJ': 22, 'eJ': 23, 'bF': 24, 'eF': 33}]
+
+Processing sample [video_test_0000839, high_jump, (9, 27)]  40/87  --- (2 calls to mnz) -- tot_time = 2.50 - avg_time = 1.25 
+
+[{'bLJ': 6, 'eLJ': 45, 'bR': 6, 'eR': 41, 'bJ': 42, 'eJ': 43, 'bS': 44, 'eS': 45}]
+[{'bHJ': 1, 'eHJ': 45, 'bR': 1, 'eR': 41, 'bJ': 42, 'eJ': 43, 'bF': 44, 'eF': 45}]
+
+Processing sample [video_test_0000839, high_jump, (12, 30)]  41/87  --- (2 calls to mnz) -- tot_time = 2.59 - avg_time = 1.30 
+
+[{'bLJ': 2, 'eLJ': 49, 'bR': 2, 'eR': 45, 'bJ': 46, 'eJ': 47, 'bS': 48, 'eS': 49}]
+[{'bHJ': 2, 'eHJ': 49, 'bR': 2, 'eR': 45, 'bJ': 46, 'eJ': 47, 'bF': 48, 'eF': 49}]
+
+Processing sample [video_test_0000887, high_jump, (3, 15)]  42/87  --- (2 calls to mnz) -- tot_time = 1.88 - avg_time = 0.94 
+
+[{'bLJ': 1, 'eLJ': 16, 'bR': 1, 'eR': 6, 'bJ': 7, 'eJ': 14, 'bS': 15, 'eS': 16}]
+[{'bHJ': 1, 'eHJ': 15, 'bR': 1, 'eR': 5, 'bJ': 6, 'eJ': 7, 'bF': 8, 'eF': 15}]
+
+Processing sample [video_test_0000887, high_jump, (12, 30)]  43/87  --- (2 calls to mnz) -- tot_time = 2.32 - avg_time = 1.16 
+
+[{'bLJ': 10, 'eLJ': 34, 'bR': 10, 'eR': 24, 'bJ': 25, 'eJ': 31, 'bS': 32, 'eS': 34}]
+[{'bHJ': 1, 'eHJ': 35, 'bR': 1, 'eR': 24, 'bJ': 25, 'eJ': 33, 'bF': 34, 'eF': 35}]
+
+Processing sample [video_test_0000887, high_jump, (2, 20)]  44/87  --- (2 calls to mnz) -- tot_time = 2.73 - avg_time = 1.37 
+
+[{'bLJ': 1, 'eLJ': 103, 'bR': 1, 'eR': 99, 'bJ': 100, 'eJ': 101, 'bS': 102, 'eS': 103}]
+[{'bHJ': 1, 'eHJ': 103, 'bR': 1, 'eR': 99, 'bJ': 100, 'eJ': 101, 'bF': 102, 'eF': 103}]
+
+Processing sample [video_test_0000896, high_jump, (13, 30)]  45/87  --- (2 calls to mnz) -- tot_time = 3.11 - avg_time = 1.55 
+
+[{'bLJ': 1, 'eLJ': 56, 'bR': 1, 'eR': 52, 'bJ': 53, 'eJ': 54, 'bS': 55, 'eS': 56}]
+[{'bHJ': 1, 'eHJ': 56, 'bR': 1, 'eR': 52, 'bJ': 53, 'eJ': 54, 'bF': 55, 'eF': 56}]
+
+Processing sample [video_test_0000896, high_jump, (12, 30)]  46/87  --- (2 calls to mnz) -- tot_time = 3.64 - avg_time = 1.82 
+
+[{'bLJ': 5, 'eLJ': 33, 'bR': 5, 'eR': 18, 'bJ': 19, 'eJ': 26, 'bS': 27, 'eS': 33}]
+[{'bHJ': 1, 'eHJ': 34, 'bR': 1, 'eR': 18, 'bJ': 19, 'eJ': 23, 'bF': 24, 'eF': 34}]
+
+Processing sample [video_test_0000896, high_jump, (0, 14)]  47/87  --- (2 calls to mnz) -- tot_time = 11.72 - avg_time = 5.86 
+
+[{'bLJ': 1, 'eLJ': 38, 'bR': 1, 'eR': 10, 'bJ': 11, 'eJ': 23, 'bS': 24, 'eS': 38}]
+[{'bHJ': 1, 'eHJ': 128, 'bR': 1, 'eR': 124, 'bJ': 125, 'eJ': 126, 'bF': 127, 'eF': 128}]
+
+Processing sample [video_test_0001008, high_jump, (10, 18)]  48/87  --- (2 calls to mnz) -- tot_time = 2.24 - avg_time = 1.12 
+
+[{'bLJ': 1, 'eLJ': 44, 'bR': 1, 'eR': 40, 'bJ': 41, 'eJ': 42, 'bS': 43, 'eS': 44}]
+[{'bHJ': 1, 'eHJ': 44, 'bR': 1, 'eR': 40, 'bJ': 41, 'eJ': 42, 'bF': 43, 'eF': 44}]
+
+Processing sample [video_test_0001008, high_jump, (17, 33)]  49/87  --- (2 calls to mnz) -- tot_time = 3.35 - avg_time = 1.67 
+
+[{'bLJ': 1, 'eLJ': 59, 'bR': 1, 'eR': 55, 'bJ': 56, 'eJ': 57, 'bS': 58, 'eS': 59}]
+[{'bHJ': 1, 'eHJ': 59, 'bR': 1, 'eR': 55, 'bJ': 56, 'eJ': 57, 'bF': 58, 'eF': 59}]
+
+Processing sample [video_test_0001008, high_jump, (20, 41)]  50/87  --- (2 calls to mnz) -- tot_time = 3.52 - avg_time = 1.76 
+
+[{'bLJ': 2, 'eLJ': 59, 'bR': 2, 'eR': 55, 'bJ': 56, 'eJ': 57, 'bS': 58, 'eS': 59}]
+[{'bHJ': 1, 'eHJ': 59, 'bR': 1, 'eR': 55, 'bJ': 56, 'eJ': 57, 'bF': 58, 'eF': 59}]
+
+Processing sample [video_test_0001008, high_jump, (7, 18)]  51/87  --- (2 calls to mnz) -- tot_time = 1.90 - avg_time = 0.95 
+
+[{'bLJ': 20, 'eLJ': 25, 'bR': 20, 'eR': 21, 'bJ': 22, 'eJ': 23, 'bS': 24, 'eS': 25}]
+[{'bHJ': 6, 'eHJ': 20, 'bR': 6, 'eR': 9, 'bJ': 10, 'eJ': 15, 'bF': 16, 'eF': 20}]
+
+Processing sample [video_test_0001098, high_jump, (2, 19)]  52/87  --- (2 calls to mnz) -- tot_time = 2.13 - avg_time = 1.06 
+
+[{'bLJ': 123, 'eLJ': 128, 'bR': 123, 'eR': 124, 'bJ': 125, 'eJ': 126, 'bS': 127, 'eS': 128}]
+[{'bHJ': 2, 'eHJ': 20, 'bR': 2, 'eR': 9, 'bJ': 10, 'eJ': 13, 'bF': 14, 'eF': 20}]
+
+Processing sample [video_test_0001098, high_jump, (9, 65)]  53/87  --- (2 calls to mnz) -- tot_time = 7.03 - avg_time = 3.51 
+
+[{'bLJ': 6, 'eLJ': 65, 'bR': 6, 'eR': 30, 'bJ': 31, 'eJ': 63, 'bS': 64, 'eS': 65}]
+[{'bHJ': 1, 'eHJ': 69, 'bR': 1, 'eR': 30, 'bJ': 31, 'eJ': 49, 'bF': 50, 'eF': 69}]
+
+Processing sample [video_test_0001098, high_jump, (1, 23)]  54/87  --- (2 calls to mnz) -- tot_time = 2.64 - avg_time = 1.32 
+
+[{'bLJ': 1, 'eLJ': 32, 'bR': 1, 'eR': 6, 'bJ': 7, 'eJ': 21, 'bS': 22, 'eS': 32}]
+[{'bHJ': 1, 'eHJ': 30, 'bR': 1, 'eR': 6, 'bJ': 7, 'eJ': 15, 'bF': 16, 'eF': 30}]
+
+Processing sample [video_test_0000062, long_jump, (5, 15)]  55/87  --- (2 calls to mnz) -- tot_time = 3.23 - avg_time = 1.61 
+
+[{'bLJ': 6, 'eLJ': 23, 'bR': 6, 'eR': 8, 'bJ': 9, 'eJ': 13, 'bS': 14, 'eS': 23}]
+[{'bHJ': 14, 'eHJ': 37, 'bR': 14, 'eR': 33, 'bJ': 34, 'eJ': 35, 'bF': 36, 'eF': 37}]
+
+Processing sample [video_test_0000379, long_jump, (3, 27)]  56/87  --- (2 calls to mnz) -- tot_time = 2.40 - avg_time = 1.20 
+
+[{'bLJ': 13, 'eLJ': 115, 'bR': 13, 'eR': 18, 'bJ': 19, 'eJ': 28, 'bS': 29, 'eS': 115}]
+[{'bHJ': 28, 'eHJ': 119, 'bR': 28, 'eR': 115, 'bJ': 116, 'eJ': 117, 'bF': 118, 'eF': 119}]
+
+Processing sample [video_test_0000379, long_jump, (4, 38)]  57/87  --- (2 calls to mnz) -- tot_time = 5.32 - avg_time = 2.66 
+
+[{'bLJ': 1, 'eLJ': 121, 'bR': 1, 'eR': 24, 'bJ': 25, 'eJ': 33, 'bS': 34, 'eS': 121}]
+[{'bHJ': 3, 'eHJ': 41, 'bR': 3, 'eR': 24, 'bJ': 25, 'eJ': 39, 'bF': 40, 'eF': 41}]
+
+Processing sample [video_test_0000379, long_jump, (2, 40)]  58/87  --- (2 calls to mnz) -- tot_time = 5.77 - avg_time = 2.89 
+
+[{'bLJ': 17, 'eLJ': 78, 'bR': 17, 'eR': 23, 'bJ': 24, 'eJ': 34, 'bS': 35, 'eS': 78}]
+[{'bHJ': 40, 'eHJ': 110, 'bR': 40, 'eR': 106, 'bJ': 107, 'eJ': 108, 'bF': 109, 'eF': 110}]
+
+Processing sample [video_test_0000379, long_jump, (0, 21)]  59/87  --- (2 calls to mnz) -- tot_time = 2.54 - avg_time = 1.27 
+
+[{'bLJ': 1, 'eLJ': 94, 'bR': 1, 'eR': 28, 'bJ': 29, 'eJ': 30, 'bS': 31, 'eS': 94}]
+[{'bHJ': 1, 'eHJ': 34, 'bR': 1, 'eR': 30, 'bJ': 31, 'eJ': 32, 'bF': 33, 'eF': 34}]
+
+Processing sample [video_test_0000379, long_jump, (4, 34)]  60/87  --- (2 calls to mnz) -- tot_time = 4.19 - avg_time = 2.09 
+
+[{'bLJ': 1, 'eLJ': 38, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 38}]
+[{'bHJ': 35, 'eHJ': 75, 'bR': 35, 'eR': 71, 'bJ': 72, 'eJ': 73, 'bF': 74, 'eF': 75}]
+
+Processing sample [video_test_0001369, long_jump, (12, 39)]  61/87  --- (2 calls to mnz) -- tot_time = 3.11 - avg_time = 1.56 
+
+[{'bLJ': 14, 'eLJ': 42, 'bR': 14, 'eR': 32, 'bJ': 33, 'eJ': 36, 'bS': 37, 'eS': 42}]
+[{'bHJ': 15, 'eHJ': 41, 'bR': 15, 'eR': 32, 'bJ': 33, 'eJ': 39, 'bF': 40, 'eF': 41}]
+
+Processing sample [video_test_0001369, long_jump, (55, 79)]  62/87  --- (2 calls to mnz) -- tot_time = 11.94 - avg_time = 5.97 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 72, 'bJ': 73, 'eJ': 81, 'bS': 82, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 84, 'bR': 1, 'eR': 72, 'bJ': 73, 'eJ': 82, 'bF': 83, 'eF': 84}]
+
+Processing sample [video_test_0001369, long_jump, (51, 58)]  63/87  --- (2 calls to mnz) -- tot_time = 2.02 - avg_time = 1.01 
+
+[{'bLJ': 1, 'eLJ': 116, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 116}]
+[{'bHJ': 26, 'eHJ': 63, 'bR': 26, 'eR': 52, 'bJ': 53, 'eJ': 61, 'bF': 62, 'eF': 63}]
+
+Processing sample [video_test_0001369, long_jump, (1, 19)]  64/87  --- (2 calls to mnz) -- tot_time = 1.86 - avg_time = 0.93 
+
+[{'bLJ': 1, 'eLJ': 56, 'bR': 1, 'eR': 12, 'bJ': 13, 'eJ': 20, 'bS': 21, 'eS': 56}]
+[{'bHJ': 2, 'eHJ': 24, 'bR': 2, 'eR': 12, 'bJ': 13, 'eJ': 22, 'bF': 23, 'eF': 24}]
+
+Processing sample [video_test_0001459, long_jump, (23, 47)]  65/87  --- (2 calls to mnz) -- tot_time = 7.74 - avg_time = 3.87 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 39, 'bJ': 40, 'eJ': 45, 'bS': 46, 'eS': 128}]
+[{'bHJ': 8, 'eHJ': 94, 'bR': 8, 'eR': 39, 'bJ': 40, 'eJ': 92, 'bF': 93, 'eF': 94}]
+
+Processing sample [video_test_0001459, long_jump, (34, 64)]  66/87  --- (2 calls to mnz) -- tot_time = 6.45 - avg_time = 3.22 
+
+[{'bLJ': 26, 'eLJ': 128, 'bR': 26, 'eR': 46, 'bJ': 47, 'eJ': 48, 'bS': 49, 'eS': 128}]
+[{'bHJ': 19, 'eHJ': 57, 'bR': 19, 'eR': 47, 'bJ': 48, 'eJ': 55, 'bF': 56, 'eF': 57}]
+
+Processing sample [video_test_0001459, long_jump, (2, 32)]  67/87  --- (2 calls to mnz) -- tot_time = 2.78 - avg_time = 1.39 
+
+[{'bLJ': 1, 'eLJ': 114, 'bR': 1, 'eR': 19, 'bJ': 20, 'eJ': 24, 'bS': 25, 'eS': 114}]
+[{'bHJ': 1, 'eHJ': 28, 'bR': 1, 'eR': 19, 'bJ': 20, 'eJ': 26, 'bF': 27, 'eF': 28}]
+
+Processing sample [video_test_0001459, long_jump, (26, 53)]  68/87  --- (2 calls to mnz) -- tot_time = 2.86 - avg_time = 1.43 
+
+[{'bLJ': 15, 'eLJ': 119, 'bR': 15, 'eR': 45, 'bJ': 46, 'eJ': 49, 'bS': 50, 'eS': 119}]
+[{'bHJ': 1, 'eHJ': 53, 'bR': 1, 'eR': 45, 'bJ': 46, 'eJ': 51, 'bF': 52, 'eF': 53}]
+
+Processing sample [video_test_0001459, long_jump, (5, 42)]  69/87  --- (2 calls to mnz) -- tot_time = 2.78 - avg_time = 1.39 
+
+[{'bLJ': 1, 'eLJ': 119, 'bR': 1, 'eR': 26, 'bJ': 27, 'eJ': 31, 'bS': 32, 'eS': 119}]
+[{'bHJ': 1, 'eHJ': 34, 'bR': 1, 'eR': 26, 'bJ': 27, 'eJ': 32, 'bF': 33, 'eF': 34}]
+
+Processing sample [video_test_0001459, long_jump, (27, 69)]  70/87  --- (2 calls to mnz) -- tot_time = 5.50 - avg_time = 2.75 
+
+[{'bLJ': 17, 'eLJ': 128, 'bR': 17, 'eR': 46, 'bJ': 47, 'eJ': 51, 'bS': 52, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 55, 'bR': 1, 'eR': 46, 'bJ': 47, 'eJ': 53, 'bF': 54, 'eF': 55}]
+
+Processing sample [video_test_0001459, long_jump, (16, 44)]  71/87  --- (2 calls to mnz) -- tot_time = 2.89 - avg_time = 1.45 
+
+[{'bLJ': 15, 'eLJ': 117, 'bR': 15, 'eR': 35, 'bJ': 36, 'eJ': 39, 'bS': 40, 'eS': 117}]
+[{'bHJ': 1, 'eHJ': 43, 'bR': 1, 'eR': 35, 'bJ': 36, 'eJ': 41, 'bF': 42, 'eF': 43}]
+
+Processing sample [video_test_0001459, long_jump, (18, 38)]  72/87  --- (2 calls to mnz) -- tot_time = 2.19 - avg_time = 1.10 
+
+[{'bLJ': 12, 'eLJ': 54, 'bR': 12, 'eR': 28, 'bJ': 29, 'eJ': 30, 'bS': 31, 'eS': 54}]
+[{'bHJ': 1, 'eHJ': 38, 'bR': 1, 'eR': 28, 'bJ': 29, 'eJ': 36, 'bF': 37, 'eF': 38}]
+
+Processing sample [video_test_0001459, long_jump, (16, 40)]  73/87  --- (2 calls to mnz) -- tot_time = 2.75 - avg_time = 1.37 
+
+[{'bLJ': 15, 'eLJ': 39, 'bR': 15, 'eR': 29, 'bJ': 30, 'eJ': 33, 'bS': 34, 'eS': 39}]
+[{'bHJ': 1, 'eHJ': 37, 'bR': 1, 'eR': 29, 'bJ': 30, 'eJ': 35, 'bF': 36, 'eF': 37}]
+
+Processing sample [video_test_0001459, long_jump, (17, 52)]  74/87  --- (2 calls to mnz) -- tot_time = 3.44 - avg_time = 1.72 
+
+[{'bLJ': 1, 'eLJ': 51, 'bR': 1, 'eR': 35, 'bJ': 36, 'eJ': 37, 'bS': 38, 'eS': 51}]
+[{'bHJ': 1, 'eHJ': 45, 'bR': 1, 'eR': 35, 'bJ': 36, 'eJ': 43, 'bF': 44, 'eF': 45}]
+
+Processing sample [video_test_0001459, long_jump, (2, 27)]  75/87  --- (2 calls to mnz) -- tot_time = 2.66 - avg_time = 1.33 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 74, 'bJ': 124, 'eJ': 125, 'bS': 127, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 78, 'bR': 1, 'eR': 74, 'bJ': 75, 'eJ': 76, 'bF': 77, 'eF': 78}]
+
+Processing sample [video_test_0001459, long_jump, (45, 63)]  76/87  --- (2 calls to mnz) -- tot_time = 6.11 - avg_time = 3.06 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 56, 'bJ': 57, 'eJ': 59, 'bS': 60, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 67, 'bR': 1, 'eR': 56, 'bJ': 57, 'eJ': 65, 'bF': 66, 'eF': 67}]
+
+Processing sample [video_test_0001459, long_jump, (32, 67)]  77/87  --- (2 calls to mnz) -- tot_time = 6.41 - avg_time = 3.21 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 48, 'bJ': 49, 'eJ': 50, 'bS': 51, 'eS': 128}]
+[{'bHJ': 2, 'eHJ': 70, 'bR': 2, 'eR': 48, 'bJ': 49, 'eJ': 68, 'bF': 69, 'eF': 70}]
+
+Processing sample [video_test_0001459, long_jump, (34, 60)]  78/87  --- (2 calls to mnz) -- tot_time = 6.28 - avg_time = 3.14 
+
+[{'bLJ': 31, 'eLJ': 128, 'bR': 31, 'eR': 52, 'bJ': 53, 'eJ': 55, 'bS': 56, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 60, 'bR': 1, 'eR': 52, 'bJ': 53, 'eJ': 58, 'bF': 59, 'eF': 60}]
+
+Processing sample [video_test_0001459, long_jump, (45, 64)]  79/87  --- (2 calls to mnz) -- tot_time = 5.37 - avg_time = 2.68 
+
+[{'bLJ': 36, 'eLJ': 121, 'bR': 36, 'eR': 53, 'bJ': 54, 'eJ': 58, 'bS': 59, 'eS': 121}]
+[{'bHJ': 35, 'eHJ': 66, 'bR': 35, 'eR': 53, 'bJ': 54, 'eJ': 64, 'bF': 65, 'eF': 66}]
+
+Processing sample [video_test_0001459, long_jump, (33, 57)]  80/87  --- (2 calls to mnz) -- tot_time = 11.20 - avg_time = 5.60 
+
+[{'bLJ': 19, 'eLJ': 128, 'bR': 19, 'eR': 47, 'bJ': 48, 'eJ': 57, 'bS': 58, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 62, 'bR': 1, 'eR': 47, 'bJ': 48, 'eJ': 60, 'bF': 61, 'eF': 62}]
+
+Processing sample [video_test_0001459, long_jump, (44, 67)]  81/87  --- (2 calls to mnz) -- tot_time = 6.25 - avg_time = 3.13 
+
+[{'bLJ': 38, 'eLJ': 128, 'bR': 38, 'eR': 52, 'bJ': 53, 'eJ': 54, 'bS': 55, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 71, 'bR': 1, 'eR': 53, 'bJ': 54, 'eJ': 69, 'bF': 70, 'eF': 71}]
+
+Processing sample [video_test_0001459, long_jump, (34, 62)]  82/87  --- (2 calls to mnz) -- tot_time = 5.77 - avg_time = 2.88 
+
+[{'bLJ': 25, 'eLJ': 74, 'bR': 25, 'eR': 44, 'bJ': 45, 'eJ': 51, 'bS': 52, 'eS': 74}]
+[{'bHJ': 1, 'eHJ': 59, 'bR': 1, 'eR': 44, 'bJ': 45, 'eJ': 57, 'bF': 58, 'eF': 59}]
+
+Processing sample [video_test_0001495, long_jump, (44, 56)]  83/87  --- (2 calls to mnz) -- tot_time = 4.37 - avg_time = 2.18 
+
+[{'bLJ': 1, 'eLJ': 72, 'bR': 1, 'eR': 49, 'bJ': 50, 'eJ': 52, 'bS': 53, 'eS': 72}]
+[{'bHJ': 1, 'eHJ': 74, 'bR': 1, 'eR': 49, 'bJ': 50, 'eJ': 72, 'bF': 73, 'eF': 74}]
+
+Processing sample [video_test_0001495, long_jump, (28, 38)]  84/87  --- (2 calls to mnz) -- tot_time = 2.55 - avg_time = 1.28 
+
+[{'bLJ': 1, 'eLJ': 128, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 40, 'bR': 1, 'eR': 32, 'bJ': 33, 'eJ': 38, 'bF': 39, 'eF': 40}]
+
+Processing sample [video_test_0001495, long_jump, (33, 47)]  85/87  --- (2 calls to mnz) -- tot_time = 5.30 - avg_time = 2.65 
+
+[{'bLJ': 1, 'eLJ': 120, 'bR': 1, 'eR': 42, 'bJ': 43, 'eJ': 67, 'bS': 119, 'eS': 120}]
+[{'bHJ': 4, 'eHJ': 69, 'bR': 4, 'eR': 42, 'bJ': 43, 'eJ': 67, 'bF': 68, 'eF': 69}]
+
+Processing sample [video_test_0001495, long_jump, (38, 55)]  86/87  --- (2 calls to mnz) -- tot_time = 2.94 - avg_time = 1.47 
+
+[{'bLJ': 20, 'eLJ': 128, 'bR': 20, 'eR': 48, 'bJ': 49, 'eJ': 55, 'bS': 56, 'eS': 128}]
+[{'bHJ': 1, 'eHJ': 57, 'bR': 1, 'eR': 48, 'bJ': 49, 'eJ': 55, 'bF': 56, 'eF': 57}]
+
+Processing sample [video_test_0001495, long_jump, (28, 38)]  87/87  --- (2 calls to mnz) -- tot_time = 1.92 - avg_time = 0.96 
+
+[{'bLJ': 1, 'eLJ': 95, 'bR': 1, 'eR': 2, 'bJ': 3, 'eJ': 4, 'bS': 5, 'eS': 95}]
+[{'bHJ': 1, 'eHJ': 44, 'bR': 1, 'eR': 33, 'bJ': 34, 'eJ': 42, 'bF': 43, 'eF': 44}]
+
+
+ Tot time minizinc calls 310.77
+
+
+Epoch: 50, F1-Score: [0.50176346 0.47330447 0.33729216 0.20800525 0.47787611 0.41062677]
+Epoch: 50, Average Precision: [0.32026016 0.2405268  0.12850712 0.12047185 0.31104952 0.25438186]
+Epoch: 50, F1-Score: 0.401478, mAP: 0.229200
