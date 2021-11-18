@@ -153,7 +153,6 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
     tot_time = 0.
     # iterate on the events
     for i, sample_test in enumerate(se_test):
-        breakpoint()
         duration = sample_test[1]
         num_features = sample_test[2]
         

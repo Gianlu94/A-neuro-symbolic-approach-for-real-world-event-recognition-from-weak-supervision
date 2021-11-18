@@ -11,6 +11,23 @@ import pandas as pd
 # se = structured event
 
 
+def insert_intervals_in_features(se_of_v, begin_s, end_s, fps, num_features):
+    begin_f = []
+    end_f = []
+    for i in range(len(begin_s)):
+        begin_a1 = begin_s[i]
+        end_a1 = end_s[i]
+        range_features = []
+        for j in range(num_features):
+            if j/fps >= begin_a1 and j/fps <= end_a1:
+                range_features.append(j)
+        begin_f.append(range_features[0])
+        end_f.append(range_features[-1])
+
+    se_of_v.insert(len(se_of_v.columns), "begin_f", begin_f)
+    se_of_v.insert(len(se_of_v.columns), "end_f", end_f)
+    
+
 def get_data(video, duration_of_v, num_features, se_name, se_intervals):
     se_list = []
     
@@ -76,7 +93,7 @@ def compute_valid_cut(se_list):
                 new_cut = [random.randint(cut[0], tmp_event[0]), random.randint(tmp_event[1], cut[1])]
             se_list[i][4] = tuple(new_cut)
             
-    
+ 
 def load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_json, features):
     # list containing element of the form <video, duration_s, num_features, se_name, cut_f, event_f, event_s>
     # *_s -> seconds, *_f -> features
@@ -117,8 +134,9 @@ def load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_jso
             fps = len(features[v]) / duration_of_v
             
             # insert begin and end of actions expressed in features
-            se_of_v.insert(len(se_of_v.columns), "begin_f", (se_of_v["begin"] * fps).astype(int).to_list())
-            se_of_v.insert(len(se_of_v.columns), "end_f", (se_of_v["end"] * fps).astype(int).to_list())
+            insert_intervals_in_features(se_of_v, se_of_v["begin"].to_list(), se_of_v["end"].to_list(), fps, num_features)
+            #se_of_v.insert(len(se_of_v.columns), "begin_f", (se_of_v["begin"] * fps).astype(int).to_list())
+            #se_of_v.insert(len(se_of_v.columns), "end_f", (se_of_v["end"] * fps).astype(int).to_list())
     
             # order actions
             se_of_v = se_of_v.sort_values(by=["begin_f"])
@@ -131,7 +149,7 @@ def load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_jso
     
     # resize cuts bigger than 128
     compute_valid_cut(se_list)
-    
+
     return se_list
 
 
