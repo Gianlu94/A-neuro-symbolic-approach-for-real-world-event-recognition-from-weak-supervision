@@ -34,15 +34,15 @@ constraint bR == bHJ /\ eR < bJ /\ eJ < bF /\ eF == eHJ;
 
 % component of the cost function
 var int: cost_comp_run_pos = eR - bR - sum (t in bR..eR) (actions_predictions[1,t]);
-var int: cost_comp_run_neg = sum (t in eR..eHJ) (actions_predictions[1,t]);
+var int: cost_comp_run_neg = sum (t in (eR+1)..eHJ) (actions_predictions[1,t]);
 var int: cost_comp_jump_pos = eJ - bJ - sum (t in bJ..eJ) (actions_predictions[2,t]);
-var int: cost_comp_jump_neg_1 = sum (t in bHJ..bJ) (actions_predictions[2,t]);
-var int: cost_comp_jump_neg_2 = sum (t in eJ..eHJ) (actions_predictions[2,t]);
+var int: cost_comp_jump_neg_1 = sum (t in bHJ..(bJ-1)) (actions_predictions[2,t]);
+var int: cost_comp_jump_neg_2 = sum (t in (eJ+1)..eHJ) (actions_predictions[2,t]);
 var int: cost_comp_fall_pos = eF - bF - sum (t in bF..eF) (actions_predictions[3,t]);
-var int: cost_comp_fall_neg = sum (t in bHJ..bF) (actions_predictions[3,t]);
+var int: cost_comp_fall_neg = sum (t in bHJ..(bF-1)) (actions_predictions[3,t]);
 var int: cost_comp_highjump_pos = eHJ - bHJ - sum (t in bHJ..eHJ) (actions_predictions[4,t]);
-var int: cost_comp_highjump_neg_1 = sum (t in bC..bHJ) (actions_predictions[4,t]);
-var int: cost_comp_highjump_neg_2 = sum (t in eHJ..eC) (actions_predictions[4,t]);
+var int: cost_comp_highjump_neg_1 = sum (t in bC..(bHJ-1)) (actions_predictions[4,t]);
+var int: cost_comp_highjump_neg_2 = sum (t in (eHJ+1)..eC) (actions_predictions[4,t]);
 
 
 var int: cost = (
@@ -50,7 +50,7 @@ var int: cost = (
   + cost_comp_jump_pos + cost_comp_jump_neg_1 + cost_comp_jump_neg_2
   + cost_comp_fall_pos + cost_comp_fall_neg
   + cost_comp_highjump_pos + cost_comp_highjump_neg_1 + cost_comp_highjump_neg_2 +
-  + 1000*abs(bHJ - eHJ - avgHJ) + 1000*abs(bR - eR - avgR) + 1000*abs(bJ - eJ - avgJ) + 1000*abs(bF - eF - avgF)
+  + 1000*abs(bHJ - eHJ + 1 - avgHJ) + 1000*abs(bR - eR + 1 - avgR) + 1000*abs(bJ - eJ + 1 - avgJ) + 1000*abs(bF - eF + 1 - avgF)
 );
 
 solve minimize cost;
