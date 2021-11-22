@@ -8,20 +8,21 @@ import numpy as np
 import os
 
 
-def create_matrix_to_plot(ground_truth, nn_pred, mnz_pred, class_to_evaluate, colors):
+def create_matrix_to_plot(ground_truth, nn_pred, mnz_pred, combined, class_to_evaluate, colors):
     num_rows = ground_truth.shape[0]
     num_columns = ground_truth.shape[1]
-    matrix_to_plot = np.zeros((num_rows * 3, num_columns))
+    matrix_to_plot = np.zeros((num_rows*4, num_columns))
     
     labels = []
     labels_colors = []
-    for i in range(0, num_rows*3, 3):
-        idx_action = i // 3
-        matrix_to_plot[i:i+3] = np.stack([ground_truth[idx_action], (nn_pred[idx_action] > 0.5).astype(int), mnz_pred[idx_action]], axis=0)
+    for i in range(0, num_rows*4, 4):
+        idx_action = i // 4
+        matrix_to_plot[i:i+4] = np.stack([
+            ground_truth[idx_action], (nn_pred[idx_action] > 0.5).astype(int), mnz_pred[idx_action], combined[idx_action]], axis=0)
     
-        labels += [class_to_evaluate[idx_action] for _ in range(3)]
+        labels += [class_to_evaluate[idx_action] for _ in range(4)]
         labels_colors += colors
-        
+
     return matrix_to_plot, labels, labels_colors
 
 
@@ -37,7 +38,6 @@ def _get_color(color):
 
 
 def highlight_intervals(matrix, colors):
-    
     highlighted_matrix = np.zeros((matrix.shape +(3,)))
    
     num_rows = matrix.shape[0]
@@ -48,7 +48,13 @@ def highlight_intervals(matrix, colors):
             if matrix[i, j] == 0.:
                 highlighted_matrix[i, j, :] = [1., 1., 1.]
             else:
-                idx_color = i % 3
+                if (i + 1) % 4 == 0:
+                    if matrix[i-1, j] == 1:
+                        idx_color = (i - 1) % 4
+                    else:
+                        idx_color = (i - 2) % 4
+                else:
+                    idx_color = i % 4
                 c = _get_color(colors[idx_color])
                 highlighted_matrix[i, j, :] = c
     return highlighted_matrix
@@ -70,11 +76,11 @@ if __name__ == '__main__':
 
     #plt.style.use('ggplot')
     fig = plt.figure(figsize=(20, 10))
-    colors = ["g", "b", "r"]
+    colors = ["g", "b", "r", "y"]
     legend_list = ["ground_truth", "nn", "nn+mnz"]
     for sample, values in filtered_outputs.items():
-        ground_truth, ntw_pred, mnz_pred = values["ground_truth"], values["n"], values["nmnz"]
-        unified_matrix, labels, colors_labels = create_matrix_to_plot(ground_truth, ntw_pred, mnz_pred, class_to_evaluate, colors)
+        ground_truth, ntw_pred, mnz_pred, combined = values["ground_truth"], values["n"], values["nmnz"], values["combined"]
+        unified_matrix, labels, colors_labels = create_matrix_to_plot(ground_truth, ntw_pred, mnz_pred, combined, class_to_evaluate, colors)
         highlighted_matrix = highlight_intervals(unified_matrix, colors)
         
         plt.title(sample)

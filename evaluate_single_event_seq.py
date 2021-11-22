@@ -58,7 +58,7 @@ def fill_mnz_pred(mnz_pred, sol, se_name, dataset_classes):
     time_points = list(sol[0].values())
     # index start from 0
     time_points = [t - 1 for t in time_points]
-    
+
     rows = [list(range(time_points[i], time_points[i + 1] + 1)) for i in range(0, len(time_points), 2)]
     columns = [len(r) * [class_of_interest[i]] for i, r in enumerate(rows)]
     rows = get_flatted_list(rows)
@@ -117,7 +117,23 @@ def get_best_sol(sols, criteria, output, dataset_classes):
     idx_max_action = torch.argmax(scores)
     
     return sols[idx_max_action], actions[idx_max_action]
-        
+
+
+def set_ntw_prediction_in_mnz_pred(sol, nn_output, mnz_pred):
+    num_actions = nn_output.shape[1]
+    time_points = list(sol[0].values())
+    # index start from 0
+    time_points = [t - 1 for t in time_points]
+    se_interval = time_points[:2]
+
+    rows = [list(range(se_interval[0], se_interval[1]+1)) for i in range(0, num_actions)]
+    columns = [len(r) * [i] for i, r in enumerate(rows)]
+    rows = get_flatted_list(rows)
+    columns = get_flatted_list(columns)
+    nn_output[rows, columns] = 0
+    
+    return nn_output + mnz_pred
+
     
 def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, se_test, mnz_models, criteria):
     type_models = ""
@@ -245,7 +261,8 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
                 num_mnz_models, tot_time_sample, tot_time_sample / num_mnz_models))
             for sol in sols: print(sol)
             
-            outputs = mnz_pred
+            outputs = set_ntw_prediction_in_mnz_pred(best_sol, outputs, mnz_pred)
+            #outputs = mnz_pred
             tot_time += tot_time_sample
             
         indices = torch.tensor([class_to_evaluate] * outputs.shape[0])
@@ -255,8 +272,10 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
         # focus only on the given subset of classes
         filtered_outputs = torch.gather(outputs, 1, indices)
         filtered_labels = torch.gather(labels_clip, 1, indices)
-        
-        save_filtered_outputs(str(sample_test), eval_type, filtered_outputs, filtered_labels, filtered_outputs_to_save)
+
+        if eval_type == "nmnz":
+            save_filtered_outputs(str(sample_test), eval_type, torch.gather(mnz_pred, 1, indices), filtered_labels,filtered_outputs_to_save)
+            save_filtered_outputs(str(sample_test), "combined", filtered_outputs, filtered_labels, filtered_outputs_to_save)
         
         filtered_outputs = filtered_outputs.data.numpy()
         filtered_labels = filtered_labels.cpu().data.numpy()
@@ -343,7 +362,7 @@ if __name__ == '__main__':
     # evaluation is done only to a subset of classes (depending on the events we manage)
     cfg_model["class_to_evaluate"] = [dataset_classes[class_name] - 1 for class_name in cfg_model["class_to_evaluate"]]
     cfg_model["path_to_nn_output"] = path_to_nn_output
-    # name of the folder of the mnz model to evaluate
+    # name of the folder of the mnz model to evalWuate
     cfg_model["mnz_models"] = path_to_mnz.split("/")[-2]
 
     cfg_model["use_cuda"] = use_cuda
