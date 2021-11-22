@@ -18,7 +18,8 @@ def create_matrix_to_plot(ground_truth, nn_pred, mnz_pred, combined, class_to_ev
     for i in range(0, num_rows*4, 4):
         idx_action = i // 4
         matrix_to_plot[i:i+4] = np.stack([
-            ground_truth[idx_action], (nn_pred[idx_action] > 0.5).astype(int), mnz_pred[idx_action], combined[idx_action]], axis=0)
+            ground_truth[idx_action], (nn_pred[idx_action] > 0.5).astype(int), mnz_pred[idx_action],
+            (combined[idx_action] > 0.5).astype(int)], axis=0)
     
         labels += [class_to_evaluate[idx_action] for _ in range(4)]
         labels_colors += colors
@@ -42,7 +43,7 @@ def highlight_intervals(matrix, colors):
    
     num_rows = matrix.shape[0]
     num_columns = matrix.shape[1]
-    
+
     for i in range(num_rows):
         for j in range(num_columns):
             if matrix[i, j] == 0.:

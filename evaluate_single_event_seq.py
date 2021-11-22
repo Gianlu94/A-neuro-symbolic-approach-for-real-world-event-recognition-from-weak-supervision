@@ -255,6 +255,7 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             
             # get best solution
             best_sol, se_name = get_best_sol(sols, criteria, output_transpose, dataset_classes)
+
             fill_mnz_pred(mnz_pred, best_sol, se_name, dataset_classes)
             
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
@@ -276,6 +277,8 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
         if eval_type == "nmnz":
             save_filtered_outputs(str(sample_test), eval_type, torch.gather(mnz_pred, 1, indices), filtered_labels,filtered_outputs_to_save)
             save_filtered_outputs(str(sample_test), "combined", filtered_outputs, filtered_labels, filtered_outputs_to_save)
+        else:
+            save_filtered_outputs(str(sample_test), "n", filtered_outputs, filtered_labels, filtered_outputs_to_save)
         
         filtered_outputs = filtered_outputs.data.numpy()
         filtered_labels = filtered_labels.cpu().data.numpy()
