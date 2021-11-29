@@ -8,8 +8,6 @@
   "learning_rate": 1e-3,
   "weight_decay": 1e-6,
   "optimizer": "Adam",
-  "swa_start": -1,
-  "swa_update_interval": 0,
   "f1_threshold": 0.5,
   "model_version": "v1",
   "num_mlad_layers": 5,

@@ -19,7 +19,7 @@ from minizinc.my_functions import build_problem
 from mlad.configuration import build_config
 from mlad.model import build_model
 from train import train_model, build_labels
-from utils import load_data, convert_indices
+from utils import load_data
 
 
 avg_actions_durations_s = {
@@ -119,18 +119,26 @@ def get_best_sol(sols, criteria, output, dataset_classes):
     return sols[idx_max_action], actions[idx_max_action]
 
 
-def set_ntw_prediction_in_mnz_pred(sol, nn_output, mnz_pred):
+def set_ntw_prediction_in_mnz_pred(sol, nn_output, mnz_pred, class_to_exclude=[11,13]):
     num_actions = nn_output.shape[1]
     time_points = list(sol[0].values())
     # index start from 0
     time_points = [t - 1 for t in time_points]
     se_interval = time_points[:2]
 
-    rows = [list(range(se_interval[0], se_interval[1]+1)) for i in range(0, num_actions)]
-    columns = [len(r) * [i] for i, r in enumerate(rows)]
+    rows = [list(range(se_interval[0], se_interval[1]+1)) for i in range(0, num_actions-len(class_to_exclude))]
+    
+    columns = []
+    tot = 0
+    for i in range(num_actions):
+        if i not in class_to_exclude:
+            columns += len(rows[0]) * [i]
+
     rows = get_flatted_list(rows)
-    columns = get_flatted_list(columns)
+    #columns = get_flatted_list(columns)
     nn_output[rows, columns] = 0
+    for c in class_to_exclude:
+        nn_output[:, c] = 0
     
     return nn_output + mnz_pred
 
@@ -206,6 +214,7 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
             # get clip and its labels
             features_clip = features_video[interval_cut_f[0]:interval_cut_f[1]+1]
             labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1]+1]
+            breakpoint()
             with torch.no_grad():
                 if num_clips > 0:
                     if len(features_clip) < num_clips:
@@ -226,7 +235,6 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
                 # get the output from the network
                 out = nn_model(features_clip)
                 outputs = out['final_output']
-
                 outputs = nn.Sigmoid()(outputs)
                 # save network outputs
                 nn_output[str(sample_test)] = (outputs, labels_clip)
@@ -299,12 +307,16 @@ def evaluate(eval_type, cfg_model, cfg_dataset, epoch, nn_model, features_test, 
 
     if eval_type == "nmnz":
         print("\n\n Tot time minizinc calls {:.2f}".format(tot_time))
-        
-    print('\n\nEpoch: %d, F1-Score: %s' % (epoch, str(f1_scores)), flush=True)
-    print('Epoch: %d, Average Precision: %s' % (epoch, str(avg_precision_score)), flush=True)
+
+    print('\n\nEpoch: %d, Precision per class: %s' % (epoch, precision), flush=True)
+    print('Epoch: %d, Recall per class: %s' % (epoch, recall), flush=True)
+    print('Epoch: %d, F1-Score per class: %s\n' % (epoch, str(f1_scores)), flush=True)
+    
+    print('Epoch: %d, Average Precision Score: %s' % (epoch, str(avg_precision_score)), flush=True)
     print('Epoch: %d, F1-Score: %4f, mAP: %4f'
           % (epoch, np.nanmean(f1_scores), np.nanmean(avg_precision_score)),
           flush=True)
+    
 
     # save nn output in a pickle
     if not os.path.exists(path_to_nn_output_file):

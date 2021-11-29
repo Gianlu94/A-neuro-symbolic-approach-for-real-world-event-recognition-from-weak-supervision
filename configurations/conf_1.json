@@ -1,20 +1,32 @@
 {
   "seed": 0,
   "run_id": 0,
-  "num_epochs": 10,
+  "num_epochs": 1,
   "save_epochs": 1,
-  "batch_size": 5,
+  "batch_size": 1,
   "steps": 4,
   "learning_rate": 1e-3,
   "weight_decay": 1e-6,
   "optimizer": "Adam",
-  "swa_start": -1,
-  "swa_update_interval": 0,
   "f1_threshold": 0.5,
   "model_version": "v1",
   "num_mlad_layers": 5,
   "num_clips": 128,
   "dim_of_features": 2048,
   "eval_mode": "slide",
-  "class_to_evaluate": ["Run", "Jump", "Fall", "Sit", "HighJump", "LongJump"]
+  "class_to_evaluate": ["Run", "Jump", "Fall", "Sit", "HighJump", "LongJump"],
+  "avg_actions_durations_s" : {
+    "HighJump": {
+        "avgHJ": 4.2624,
+        "avgR": 2.3675,
+        "avgJ": 0.6512,
+        "avgF": 0.8319
+    },
+    "LongJump": {
+        "avgLJ": 6.9693,
+        "avgR": 3.6600,
+        "avgJ": 1.3041,
+        "avgS": 2.3105
+    }
+  }
 }

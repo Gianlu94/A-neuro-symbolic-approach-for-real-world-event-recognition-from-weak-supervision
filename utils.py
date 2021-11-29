@@ -1,3 +1,4 @@
+import copy
 import os
 import random
 import json
@@ -9,6 +10,56 @@ import numpy as np
 import pandas as pd
 
 # se = structured event
+
+
+def convert_to_float_tensor(input):
+    if isinstance(input, list):
+        if torch.cuda.is_available():
+            input = [torch.cuda.FloatTensor(el) for el in input]
+        else:
+            input = [torch.FloatTensor(el) for el in input]
+    elif isinstance(input, dict):
+        for key, el in input.item():
+            if torch.cuda.is_available():
+                input[key] = torch.cuda.FloatTensor(el)
+            else:
+                input[key] = torch.FloatTensor(el)
+    elif isinstance(input, h5py._hl.files.File):
+        input_dict = {}
+        for key, el in input.items():
+            if torch.cuda.is_available():
+                input_dict[key] = torch.cuda.FloatTensor(np.array(el))
+            else:
+                input_dict[key] = torch.FloatTensor(np.array(el))
+        input = input_dict
+    else:
+        if torch.cuda.is_available():
+            input = torch.cuda.FloatTensor(input)
+        else:
+            input = torch.FloatTensor(input)
+    
+    return input
+
+
+def get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_durations_s):
+    fps = num_features / duration
+    avg_actions_durations_f = {}
+    
+    if se_name == "high_jump":
+        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["HighJump"])
+    elif se_name == "long_jump":
+        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["LongJump"])
+    
+    for action in avg_actions_durations_f.keys():
+        avg_action_f = 0
+        for i in range(num_features):
+            if i / fps >= 0. and i / fps <= avg_actions_durations_f[action]:
+                avg_action_f += 1
+            else:
+                break
+        avg_actions_durations_f[action] = avg_action_f
+    
+    return avg_actions_durations_f
 
 
 def insert_intervals_in_features(se_of_v, begin_s, end_s, fps, num_features):
@@ -26,7 +77,7 @@ def insert_intervals_in_features(se_of_v, begin_s, end_s, fps, num_features):
 
     se_of_v.insert(len(se_of_v.columns), "begin_f", begin_f)
     se_of_v.insert(len(se_of_v.columns), "end_f", end_f)
-    
+
 
 def get_data(video, duration_of_v, num_features, se_name, se_intervals):
     se_list = []
@@ -152,41 +203,3 @@ def load_data(mode, path_to_data, path_to_filtered_data, path_to_annotations_jso
 
     return se_list
 
-
-def convert_to_float_tensor(input):
-    if isinstance(input, list):
-        if torch.cuda.is_available():
-            input = [torch.cuda.FloatTensor(el) for el in input]
-        else:
-            input = [torch.FloatTensor(el) for el in input]
-    elif isinstance(input, dict):
-        for key, el in input.item():
-            if torch.cuda.is_available():
-                input[key] = torch.cuda.FloatTensor(el)
-            else:
-                input[key] = torch.FloatTensor(el)
-    elif isinstance(input, h5py._hl.files.File):
-        input_dict = {}
-        for key, el in input.items():
-            if torch.cuda.is_available():
-                input_dict[key] = torch.cuda.FloatTensor(np.array(el))
-            else:
-                input_dict[key] = torch.FloatTensor(np.array(el))
-        input = input_dict
-    else:
-        if torch.cuda.is_available():
-            input = torch.cuda.FloatTensor(input)
-        else:
-            input = torch.FloatTensor(input)
-    
-    return input
-
-
-def convert_indices(num_features, duration, begin_s, end_s):
-    # convert begin and end from seconds to features vectors indices
-    fps = num_features / duration
-    begin_f = round(begin_s * fps)
-    end_f = round(end_s * fps)
-    
-    return begin_f, end_f
-    

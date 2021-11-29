@@ -3,22 +3,25 @@ import json
 import os
 import random
 
+
 import torch
 import h5py as h5
 
 from mlad.configuration import build_config
 from mlad.model import build_model
 from train import train_model
-from utils import load_data
+#from train_sup_mnz import train_model
+from utils import load_data, get_avg_actions_durations_in_f
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training ns framework")
     
     # terminals' arguments
+    parser.add_argument("--path_to_data", type=str, help="Path to train data")
+    parser.add_argument("--path_to_filtered_data", type=str, help="Path to filtered se files")
     parser.add_argument("--path_to_model", type=str, help="Path to the mlad pre-trained model")
     parser.add_argument("--path_to_conf", type=str, help="Path to configuration file")
     parser.add_argument("--path_to_mzn", type=str, help="Path to minizinc models")
-    parser.add_argument("--path_to_data", type=str, help="Path to train data")
     
     args = parser.parse_args()
     
@@ -27,7 +30,8 @@ if __name__ == '__main__':
     path_to_conf = args.path_to_conf
     path_to_mzn = args.path_to_mzn
     path_to_data = args.path_to_data
-
+    path_to_filtered_data = args.path_to_filtered_data
+    
     use_cuda = True if torch.cuda.is_available() else False
 
     # build configuration for the dataset
@@ -84,11 +88,11 @@ if __name__ == '__main__':
     features_test = h5.File(cfg_dataset.combined_test_file, 'r')
 
     # train list of se event
-    # se_train = [["video_validation_0000361", 696.47, "high_jump", 101.9, 106.8],...,
-    #             ["video_validation_0000361", 696.47, "high_jump", 112.5, 116.5]]
-    se_train = load_data("validation", path_to_data, cfg_dataset.annotations_file, features_train)
-
-    train_model(cfg_dataset, cfg_model, dataset_classes, se_train, features_train, features_test, nn_model, mnz_models)
+    se_train = load_data("validation", path_to_data, path_to_filtered_data, cfg_dataset.annotations_file, features_train)
+    se_test = load_data("test", path_to_data, path_to_filtered_data, cfg_dataset.annotations_file, features_test)
+    
+    train_model(
+        se_train, se_test, features_train, features_test, nn_model, mnz_models, cfg_model, cfg_dataset, dataset_classes)
     
     
     
