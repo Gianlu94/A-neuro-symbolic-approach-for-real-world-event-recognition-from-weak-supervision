@@ -1,0 +1,45 @@
+{
+  "seed": 0,
+  "run_id": 1,
+  "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
+  "num_epochs": 50,
+  "save_epochs": 1,
+  "batch_size": 5,
+  "learning_rate": 1e-3,
+  "weight_decay": 1e-6,
+  "optimizer": "Adam",
+  "f1_threshold": 0.5,
+  "model_version": "v1",
+  "num_mlad_layers": 5,
+  "num_clips": 128,
+  "dim_of_features": 2048,
+  "classes": 6,
+  "structured_events": {
+    "HighJump": 0,
+    "HammerThrow": 1
+  },
+  "classes_names": [
+    "Run", "Jump", "Fall",
+    "HammerThrowWindUp", "HammerThrowSpin", "HammerThrowRelease"
+  ],
+  "avg_actions_durations_s" : {
+    "HighJump": {
+        "avgHJ": 4.6912,
+        "avgR": 2.8905,
+        "avgJ": 0.6588,
+        "avgF": 0.8375
+    },
+    "LongJump": {
+        "avgLJ": 6.9693,
+        "avgR": 3.6600,
+        "avgJ": 1.3041,
+        "avgS": 2.3105
+    },
+    "HammerThrow": {
+        "avgHT": 7.3758,
+        "avgHT_WU": 2.7245,
+        "avgHT_S": 2.7135,
+        "avgHT_R": 1.0529
+    }
+  }
+}
