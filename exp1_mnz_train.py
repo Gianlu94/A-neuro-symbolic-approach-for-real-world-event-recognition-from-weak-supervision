@@ -22,198 +22,6 @@ from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_be
 data_dec = {}
 
 
-def build_labels(video_id, annotations_file, num_features, num_classes, add_background=False):
-    annotations = json.load(open(annotations_file, 'r'))
-    labels = np.zeros((num_features, num_classes), np.float32)
-    fps = num_features / annotations[video_id]['duration']
-    for annotation in annotations[video_id]['actions']:
-        for fr in range(0, num_features, 1):
-            if fr / fps >= annotation[1] and fr / fps <= annotation[2]:
-                labels[fr, annotation[
-                    0] - 1] = 1  # will make the first class to be the last for datasets other than Multi-Thumos #
-    if add_background == True:
-        new_labels = np.zeros((num_features, num_classes + 1))
-        for i, label in enumerate(labels):
-            new_labels[i, 0:-1] = label
-            if np.max(label) == 0:
-                new_labels[i, -1] = 1
-        return new_labels
-    return labels
-
-
-def evaluate(
-        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, num_clips, f1_threshold, mnz_models,
-        se_labels, avg_actions_durations_s, use_cuda, classes_names, writer, brief_summary, epochs_predictions
-):
-    
-    nn_model.eval()
-    se_names = list(se_labels.keys())
-    num_se = len(se_list)
-    num_mnz_models = len(mnz_models.keys())
-    actions_predictions = []
-    actions_ground_truth = []
-    
-    tot_loss = 0.
-    print("\nStarting evaluation")
-    start_time_ev = time.time()
-    tot_time_mnz = 0
-
-    for i, example in enumerate(se_list):
-        video, gt_se_name, duration, num_features, se_interval, _ = example
-
-        new_begin_se = 0
-        new_end_se = se_interval[1] - se_interval[0]
-
-        print("\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_se),
-              end="")
-
-        # get features for the current video
-        features_video = np.array(features[video])
-        features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
-        
-        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
-
-        labels_clip = labels["{}-{}-{}".format(video, gt_se_name, se_interval)]
-        labels_clip_textual = labels_textual[example_id]
-        
-        #labels_video = Variable(torch.from_numpy(labels_video).type(torch.FloatTensor))
-        
-        # get clip and its labels
-        features_clip = features_video[se_interval[0]:se_interval[1] + 1]
-        #labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
-        with torch.no_grad():
-            if num_clips > 0:
-                if len(features_clip) < num_clips:
-                    # padding
-                    features_to_append = torch.zeros(num_clips - len(features_clip) % num_clips, features_clip.shape[1])
-                    #labels_to_append = torch.zeros(num_clips - len(labels_clip) % num_clips, labels_clip.shape[1])
-                    features_clip = torch.cat((features_clip, features_to_append), 0)
-                    #labels_clip = torch.cat((labels_clip, labels_to_append), 0)
-                assert len(features_clip) > 0
-            else:
-                features_clip = torch.unsqueeze(features_clip, 0)
-                labels_clip = torch.unsqueeze(labels_clip, 0)
-
-            if use_cuda:
-                features_clip = features_clip.cuda()
-                labels_clip = labels_clip.cuda()
-
-            # get the output from the network
-            out = nn_model(features_clip)
-            outputs = out['final_output']
-            outputs = outputs.squeeze(0)
-            outputs = outputs[new_begin_se:new_end_se + 1]
-            # mnz
-            outputs_transpose = outputs.transpose(0, 1)
-
-            # minizinc part
-            tot_time_example = 0
-            sols = []
-            
-            for se_name, mnz_model in mnz_models.items():
-                avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features,
-                                                                         avg_actions_durations_s)
-                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, nn.Sigmoid()(outputs_transpose), avg_actions_durations_f)
-                start_time = time.time()
-    
-                sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
-                end_time = time.time()
-                tot_time_example += end_time - start_time
-                sols.append(sol)
-        
-            tot_time_mnz += tot_time_example
-
-            # get best solution
-            mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", nn.Sigmoid()(outputs), classes_names)
-            fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
-
-            example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se+1], labels_clip[new_begin_se:new_end_se+1]) / labels_clip.shape[1]
-            tot_loss += example_loss
-            print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
-                num_mnz_models, tot_time_example, tot_time_example / num_mnz_models))
-
-            for sol in sols: print(sol)
-            print("\n best_sol {}".format(predicted_se_name))
-            print("Ground Thruth: {}".format(labels_clip_textual))
-
-            outputs = mnz_pred.reshape(-1, len(classes_names))
-
-            outputs = outputs.data.numpy()
-            labels_clip = labels_clip.cpu().data.numpy()
-            assert len(outputs) == len(labels_clip)
-
-            epochs_predictions["epoch"].append(epoch)
-            epochs_predictions["video"].append(video)
-            epochs_predictions["gt_se_names"].append(gt_se_name)
-            epochs_predictions["pred_se_names"].append(predicted_se_name)
-            epochs_predictions["se_interval"].append(se_interval)
-            epochs_predictions["ground_truth"].append(labels_clip[new_begin_se: new_end_se + 1])
-            epochs_predictions["predictions"].append(mnz_pred[new_begin_se: new_end_se + 1])
-            
-            se_predictions = np.zeros((outputs.shape[0], num_mnz_models))
-            se_predictions[:, se_labels[predicted_se_name]] = 1
-            se_gt = np.zeros((outputs.shape[0], num_mnz_models))
-            se_gt[:, se_labels[gt_se_name]] = 1
-
-            actions_predictions.extend(np.concatenate((outputs, se_predictions), axis=1))
-            actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
-
-    actions_ground_truth = np.array(actions_ground_truth)
-    actions_predictions = np.array(actions_predictions)
- 
-    # compute metrics
-    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
-
-    # cf_matrix = confusion_matrix(np.argmax(ground_truth, 1), np.argmax(predictions, 1))
-    # cf_matrix_to_display = ConfusionMatrixDisplay(confusion_matrix=cf_matrix, display_labels=classes_names)
-    # cf_matrix_to_display.plot(xticks_rotation="vertical", cmap=plt.cm.Blues, values_format='g')
-
-    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
-    
-    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
-
-    
-    end_time_ev = time.time()
-
-    metrics_to_print = """
-        \nTIME: {:.2f} - time MNZ {:.2f}
-        {} -- Epoch: {}, Loss: {}
-        {} -- Epoch: {}, Precision per class: {}
-        {} -- Epoch: {}, Recall per class: {}
-        {} -- Epoch: {}, F1-Score per class: {}
-        {} -- Epoch: {}, Average Precision: {}
-        {} -- Epoch: {}, F1-Score: {:.4f}, mAP: {:.4f}
-    """.format(
-        end_time_ev-start_time_ev, tot_time_mnz,
-        mode, epoch, tot_loss.item()/num_se,
-        mode, epoch, actions_precision,
-        mode, epoch, actions_recall,
-        mode, epoch, str(actions_f1_scores),
-        mode, epoch, str(actions_avg_precision_score),
-        mode, epoch, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
-    )
-    
-    print(metrics_to_print, flush=True)
-    brief_summary.write(metrics_to_print)
-
-    if writer is not None:
-        for i, class_name in enumerate(classes_names + se_names):
-            #writer.add_scalar("Loss {} ".format(class_name), tot_loss.item()/num_se, epoch)
-            writer.add_scalar("F1 Score {} ".format(class_name), actions_f1_scores[i], epoch)
-            writer.add_scalar("Precision {} ".format(class_name), actions_precision[i], epoch)
-            writer.add_scalar("Recall {} ".format(class_name), actions_recall[i], epoch)
-            #writer.add_scalar("AP {} ".format(class_name), actions_avg_precision_score[i], epoch)
-        
-        writer.add_scalar('Loss', tot_loss.item()/num_se, epoch)
-        writer.add_scalar('Avg F1 Score', np.nanmean(actions_f1_scores), epoch)
-        writer.add_scalar('Avg Precision', np.nanmean(actions_precision), epoch)
-        writer.add_scalar('Avg Recall', np.nanmean(actions_recall), epoch)
-        writer.add_scalar('Avg AP', np.nanmean(actions_avg_precision_score), epoch)
-
-    return np.nanmean(actions_avg_precision_score) #, cf_matrix_to_display
-
-
 def _set_nn_value(input):
     if input < 0:
         return 0
@@ -302,6 +110,181 @@ def get_labels(se_list, cfg_train):
         dec_labels[label_key] = dec_labels[label_key].transpose(0, 1)
 
     return dec_labels
+
+
+def evaluate(
+        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, num_clips, mnz_models, se_labels,
+        avg_actions_durations_s, use_cuda, classes_names, writer, brief_summary, epochs_predictions
+):
+    nn_model.eval()
+    se_names = list(se_labels.keys())
+    num_se = len(se_list)
+    num_mnz_models = len(mnz_models.keys())
+    actions_predictions = []
+    actions_ground_truth = []
+    
+    tot_loss = 0.
+    print("\nStarting evaluation")
+    start_time_ev = time.time()
+    tot_time_mnz = 0
+    
+    for i, example in enumerate(se_list):
+        video, gt_se_name, duration, num_features, se_interval, _ = example
+        
+        new_begin_se = 0
+        new_end_se = se_interval[1] - se_interval[0]
+        
+        print("\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_se),
+              end="")
+        
+        # get features for the current video
+        features_video = np.array(features[video])
+        features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
+        
+        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
+        
+        labels_clip = labels["{}-{}-{}".format(video, gt_se_name, se_interval)]
+        labels_clip_textual = labels_textual[example_id]
+
+        # labels_video = Variable(torch.from_numpy(labels_video).type(torch.FloatTensor))
+        
+        # get clip and its labels
+        features_clip = features_video[se_interval[0]:se_interval[1] + 1]
+        # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
+        with torch.no_grad():
+            if num_clips > 0:
+                if len(features_clip) < num_clips:
+                    # padding
+                    features_to_append = torch.zeros(num_clips - len(features_clip) % num_clips, features_clip.shape[1])
+                    # labels_to_append = torch.zeros(num_clips - len(labels_clip) % num_clips, labels_clip.shape[1])
+                    features_clip = torch.cat((features_clip, features_to_append), 0)
+                    # labels_clip = torch.cat((labels_clip, labels_to_append), 0)
+                assert len(features_clip) > 0
+            else:
+                features_clip = torch.unsqueeze(features_clip, 0)
+                labels_clip = torch.unsqueeze(labels_clip, 0)
+            
+            if use_cuda:
+                features_clip = features_clip.cuda()
+                labels_clip = labels_clip.cuda()
+            
+            # get the output from the network
+            out = nn_model(features_clip)
+            outputs = out['final_output']
+            outputs = outputs.squeeze(0)
+            outputs = outputs[new_begin_se:new_end_se + 1]
+            # mnz
+            outputs_transpose = outputs.transpose(0, 1)
+            
+            # minizinc part
+            tot_time_example = 0
+            sols = []
+            
+            for se_name, mnz_model in mnz_models.items():
+                avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features,
+                                                                         avg_actions_durations_s)
+                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, nn.Sigmoid()(outputs_transpose),
+                                                    avg_actions_durations_f)
+                start_time = time.time()
+                
+                sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+                end_time = time.time()
+                tot_time_example += end_time - start_time
+                sols.append(sol)
+            
+            tot_time_mnz += tot_time_example
+            
+            # get best solution
+            mnz_pred = torch.zeros(outputs.shape)
+            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", nn.Sigmoid()(outputs), classes_names)
+            fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
+            
+            example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
+                                labels_clip[new_begin_se:new_end_se + 1]) / labels_clip.shape[1]
+            tot_loss += example_loss
+            print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
+                num_mnz_models, tot_time_example, tot_time_example / num_mnz_models))
+            
+            for sol in sols: print(sol)
+            print("\n best_sol {}".format(predicted_se_name))
+            print("Ground Thruth: {}".format(labels_clip_textual))
+            
+            outputs = mnz_pred.reshape(-1, len(classes_names))
+            
+            outputs = outputs.data.numpy()
+            labels_clip = labels_clip.cpu().data.numpy()
+            mnz_pred = mnz_pred.cpu().detach().numpy()
+            
+            assert len(outputs) == len(labels_clip)
+            
+            epochs_predictions["epoch"].append(epoch)
+            epochs_predictions["video"].append(video)
+            epochs_predictions["gt_se_names"].append(gt_se_name)
+            epochs_predictions["pred_se_names"].append(predicted_se_name)
+            epochs_predictions["se_interval"].append(se_interval)
+            epochs_predictions["ground_truth"].append(labels_clip)
+            epochs_predictions["predictions"].append(mnz_pred)
+            
+            se_predictions = np.zeros((outputs.shape[0], num_mnz_models))
+            se_predictions[:, se_labels[predicted_se_name]] = 1
+            se_gt = np.zeros((outputs.shape[0], num_mnz_models))
+            se_gt[:, se_labels[gt_se_name]] = 1
+            
+            actions_predictions.extend(np.concatenate((outputs, se_predictions), axis=1))
+            actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
+    
+    actions_ground_truth = np.array(actions_ground_truth)
+    actions_predictions = np.array(actions_predictions)
+    
+    # compute metrics
+    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
+    
+    # cf_matrix = confusion_matrix(np.argmax(ground_truth, 1), np.argmax(predictions, 1))
+    # cf_matrix_to_display = ConfusionMatrixDisplay(confusion_matrix=cf_matrix, display_labels=classes_names)
+    # cf_matrix_to_display.plot(xticks_rotation="vertical", cmap=plt.cm.Blues, values_format='g')
+    
+    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
+    
+    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
+    
+    end_time_ev = time.time()
+    
+    metrics_to_print = """
+        \nTIME: {:.2f} - time MNZ {:.2f}
+        {} -- Epoch: {}, Loss: {}
+        {} -- Epoch: {}, Precision per class: {}
+        {} -- Epoch: {}, Recall per class: {}
+        {} -- Epoch: {}, F1-Score per class: {}
+        {} -- Epoch: {}, Average Precision: {}
+        {} -- Epoch: {}, F1-Score: {:.4f}, mAP: {:.4f}
+    """.format(
+        end_time_ev - start_time_ev, tot_time_mnz,
+        mode, epoch, tot_loss.item() / num_se,
+        mode, epoch, actions_precision,
+        mode, epoch, actions_recall,
+        mode, epoch, str(actions_f1_scores),
+        mode, epoch, str(actions_avg_precision_score),
+        mode, epoch, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
+    )
+    
+    print(metrics_to_print, flush=True)
+    brief_summary.write(metrics_to_print)
+    
+    if writer is not None:
+        for i, class_name in enumerate(classes_names + se_names):
+            # writer.add_scalar("Loss {} ".format(class_name), tot_loss.item()/num_se, epoch)
+            writer.add_scalar("F1 Score {} ".format(class_name), actions_f1_scores[i], epoch)
+            writer.add_scalar("Precision {} ".format(class_name), actions_precision[i], epoch)
+            writer.add_scalar("Recall {} ".format(class_name), actions_recall[i], epoch)
+            # writer.add_scalar("AP {} ".format(class_name), actions_avg_precision_score[i], epoch)
+        
+        writer.add_scalar('Loss', tot_loss.item() / num_se, epoch)
+        writer.add_scalar('Avg F1 Score', np.nanmean(actions_f1_scores), epoch)
+        writer.add_scalar('Avg Precision', np.nanmean(actions_precision), epoch)
+        writer.add_scalar('Avg Recall', np.nanmean(actions_recall), epoch)
+        writer.add_scalar('Avg AP', np.nanmean(actions_avg_precision_score), epoch)
+    
+    return np.nanmean(actions_avg_precision_score)  # , cf_matrix_to_display
 
 
 def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models):
@@ -405,9 +388,6 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             video, se_name, duration, num_features, se_interval = \
                 example_train[0], example_train[1], example_train[2], example_train[3], example_train[4]
             
-            new_begin_se = 0
-            new_end_se = se_interval[1] - se_interval[0]
-            
             features_video = features_train[video]
             
             # get clip and its labels
@@ -449,7 +429,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             
             print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
 
-            example_loss = bceWLL(outputs[new_begin_se:new_end_se+1], mnz_pred[new_begin_se:new_end_se+1])
+            example_loss = bceWLL(outputs, mnz_pred)
             batch_loss += example_loss
             
             example_loss.backward()
@@ -473,8 +453,8 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             epochs_predictions["train"]["video"].append(video)
             epochs_predictions["train"]["gt_se_names"].append(se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
-            epochs_predictions["train"]["ground_truth"].append(labels_clip[new_begin_se: new_end_se+1].cpu().detach().numpy())
-            epochs_predictions["train"]["predictions"].append(mnz_pred[new_begin_se: new_end_se+1].cpu().detach().numpy())
+            epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
+            epochs_predictions["train"]["predictions"].append(mnz_pred.cpu().detach().numpy())
 
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}-- TIME MNZ {:.2f}\n".format(
@@ -489,7 +469,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         # )
         # plt.savefig(path_to_cf + "train/cf_epoch_{}.png".format(epoch))
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips, f1_threshold, mnz_models,
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips, mnz_models,
             structured_events, avg_actions_durations_s, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
         #plt.savefig(path_to_cf + "val/cf_epoch_{}.png".format(epoch))
@@ -519,7 +499,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, bceWLL, num_clips, f1_threshold, mnz_models,
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, bceWLL, num_clips, mnz_models,
         structured_events, avg_actions_durations_s, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 

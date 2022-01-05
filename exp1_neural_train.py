@@ -13,32 +13,14 @@ from torch import nn
 from tqdm import tqdm
 import pymzn
 from sklearn.metrics import (
-    average_precision_score, confusion_matrix, ConfusionMatrixDisplay, precision_recall_fscore_support)
+    average_precision_score, confusion_matrix, ConfusionMatrixDisplay, precision_recall_fscore_support
+)
 from tensorboardX import SummaryWriter
 
 from utils import convert_to_float_tensor, get_avg_actions_durations_in_f, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
 
 data_dec = {}
-
-
-def build_labels(video_id, annotations_file, num_features, num_classes, add_background=False):
-    annotations = json.load(open(annotations_file, 'r'))
-    labels = np.zeros((num_features, num_classes), np.float32)
-    fps = num_features / annotations[video_id]['duration']
-    for annotation in annotations[video_id]['actions']:
-        for fr in range(0, num_features, 1):
-            if fr / fps >= annotation[1] and fr / fps <= annotation[2]:
-                labels[fr, annotation[
-                    0] - 1] = 1  # will make the first class to be the last for datasets other than Multi-Thumos #
-    if add_background == True:
-        new_labels = np.zeros((num_features, num_classes + 1))
-        for i, label in enumerate(labels):
-            new_labels[i, 0:-1] = label
-            if np.max(label) == 0:
-                new_labels[i, -1] = 1
-        return new_labels
-    return labels
 
 
 def _set_nn_value(input):
@@ -190,9 +172,9 @@ def get_avg_labels(se_list, cfg_train):
                 else:
                     columns.extend([i] * num_frames_to_label)
                     
-                print("action {}: begin {} end {}".format(i, prev_num_frames, prev_num_frames+num_frames_to_label))
+                #print("action {}: begin {} end {}".format(i, prev_num_frames, prev_num_frames+num_frames_to_label))
                 prev_num_frames += num_frames_to_label
-            print("{} -- {}".format(se_duration, prev_num_frames))
+            #print("{} -- {}".format(se_duration, prev_num_frames))
         
         assert len(rows) == len(columns)
         label_tensor[rows, columns] = 1
@@ -373,7 +355,6 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     f1_threshold = cfg_train["f1_threshold"]
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
-    avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
     structured_events = cfg_train["structured_events"]
     
     saved_models_dir = cfg_dataset.saved_models_dir

@@ -2,7 +2,7 @@
   "seed": 0,
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
-  "path_to_mnz_models": "./minizinc/models/exp1-2/",
+  "path_to_mnz_models": "./minizinc/models/exp1/",
   "num_epochs": 50,
   "save_epochs": 1,
   "batch_size": 5,

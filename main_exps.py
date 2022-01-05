@@ -28,7 +28,7 @@ def _filter_data(se_list, se_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training ns framework")
     
-    parser.add_argument("--path_to_conf", type=str, help="Path to configuration file")
+    parser.add_argument("-path_to_conf", type=str, help="Path to configuration file")
     
     args = parser.parse_args()
     
@@ -108,7 +108,7 @@ if __name__ == '__main__':
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
         )
     else:
-        train_exp2_neural(
+        train_exp1_neural(
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset
         )
     
