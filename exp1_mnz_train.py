@@ -487,8 +487,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             "optimizer": optimizer.state_dict()
         }
         torch.save(state, saved_models_dir + "model_{}_loss_{:.4f}.pth".format(epoch, epoch_loss))
-    
-    best_model_path = os.path.join(saved_models_dir, os.listdir(saved_models_dir)[0])
+
+    best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
+    print("Loading model " + best_model_path)
     
     # load and evaluate best model on test set
     if use_cuda:
