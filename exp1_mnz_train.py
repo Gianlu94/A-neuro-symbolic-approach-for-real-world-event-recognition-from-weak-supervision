@@ -194,9 +194,10 @@ def evaluate(
             
             tot_time_mnz += tot_time_example
             
+            raw_outputs = nn.Sigmoid()(outputs)
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", nn.Sigmoid()(outputs), classes_names)
+            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs, classes_names)
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
             
             example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
@@ -223,13 +224,13 @@ def evaluate(
             epochs_predictions["pred_se_names"].append(predicted_se_name)
             epochs_predictions["se_interval"].append(se_interval)
             epochs_predictions["ground_truth"].append(labels_clip)
+            epochs_predictions["raw_outputs"].append(raw_outputs.cpu().data.numpy())
             epochs_predictions["predictions"].append(mnz_pred)
             
             se_predictions = np.zeros((outputs.shape[0], num_mnz_models))
             se_predictions[:, se_labels[predicted_se_name]] = 1
             se_gt = np.zeros((outputs.shape[0], num_mnz_models))
             se_gt[:, se_labels[gt_se_name]] = 1
-            
             actions_predictions.extend(np.concatenate((outputs, se_predictions), axis=1))
             actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
     
@@ -321,17 +322,17 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         "train":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "predictions": []
+                "raw_outputs": [], "predictions": []
             },
         "val":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "predictions": []
+                "raw_outputs": [], "predictions": []
             },
         "test":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "predictions": []
+                "raw_outputs": [], "predictions": []
             }
     }
 
@@ -353,7 +354,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    
+
     labels_train = get_labels(se_train, cfg_train)
     labels_train_textual = get_textual_label_from_tensor(labels_train)
     labels_val = get_labels(se_val, cfg_train)
@@ -454,6 +455,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             epochs_predictions["train"]["gt_se_names"].append(se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
+            epochs_predictions["train"]["raw_outputs"].append(nn.Sigmoid()(outputs).cpu().detach().numpy())
             epochs_predictions["train"]["predictions"].append(mnz_pred.cpu().detach().numpy())
 
         end_time_epoch = time.time()
@@ -486,7 +488,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             "state_dict": nn_model.state_dict(),
             "optimizer": optimizer.state_dict()
         }
-        torch.save(state, saved_models_dir + "model_{}_loss_{:.4f}.pth".format(epoch, epoch_loss))
+        torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
 
     best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
     print("Loading model " + best_model_path)

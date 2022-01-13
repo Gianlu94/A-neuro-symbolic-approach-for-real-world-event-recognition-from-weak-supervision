@@ -277,6 +277,7 @@ def evaluate(
             epochs_predictions["se_interval"].append(se_interval)
             epochs_predictions["ground_truth"].append(labels_clip)
             epochs_predictions["ground_truth_avg"].append(avg_labels_clip)
+            epochs_predictions["raw_outputs"].append(outputs)
             epochs_predictions["predictions"].append(outputs > f1_threshold)
             
             se_predictions = np.zeros((outputs.shape[0], num_se))
@@ -373,17 +374,17 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         "train":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
             },
         "val":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
             },
         "test":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
             },
     }
 
@@ -464,8 +465,10 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
                 optimizer.step()
                 optimizer.zero_grad()
 
+            outputs = nn.Sigmoid()(outputs)
             labels_clip = labels_train[id_label]
-            predicted_se_name = get_se_prediction(nn.Sigmoid()(outputs), f1_threshold, structured_events)
+            predicted_se_name = get_se_prediction(outputs, f1_threshold, structured_events)
+            outputs = outputs.cpu().detach().numpy()
             epochs_predictions["train"]["epoch"].append(epoch)
             epochs_predictions["train"]["video"].append(video)
             epochs_predictions["train"]["gt_se_names"].append(se_name)
@@ -473,8 +476,9 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
             epochs_predictions["train"]["ground_truth_avg"].append(avg_labels_clip.cpu().detach().numpy())
-            epochs_predictions["train"]["predictions"].append((nn.Sigmoid()(outputs) > f1_threshold).cpu().detach().numpy())
-
+            epochs_predictions["train"]["raw_outputs"].append(outputs)
+            epochs_predictions["train"]["predictions"].append(outputs > f1_threshold)
+            
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
         
@@ -504,8 +508,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             "state_dict": nn_model.state_dict(),
             "optimizer": optimizer.state_dict()
         }
-        torch.save(state, saved_models_dir + "model_{}.pth".format(epoch, epoch_loss))
-    
+        torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
     
     best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
     print("Loading model " + best_model_path)
