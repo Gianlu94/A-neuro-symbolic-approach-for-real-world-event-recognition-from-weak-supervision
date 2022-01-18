@@ -1,0 +1,77 @@
+MultiTHUMOS extends the THUMOS '14 action detection dataset with dense, multilabel annotations. Videos in the THUMOS '14 action detection "Validation Data" and "Test Data" sets are annotated.
+
+Annotations are provided in the same format as THUMOS. For each action class, a text file is provided with one temporal instance per line, in the format [video_name start_time end_time]. The times are in seconds with 1 decimal point precision.
+
+The file class_list.txt lists the 65 classes in the dataset. The first 20 classes are the THUMOS '14 action detection classes (annotation files are provided for convenience), and the remaining 45 classes are the new MultiTHUMOS classes. Following, textual elaboration of some classes are also provided.
+
+-----------------------------------------
+
+1 BaseballPitch
+2 BasketballDunk
+3 Billiards
+4 CleanAndJerk
+5 CliffDiving
+6 CricketBowling
+7 CricketShot
+8 Diving
+9 FrisbeeCatch
+10 GolfSwing
+11 HammerThrow
+12 HighJump
+13 JavelinThrow
+14 LongJump
+15 PoleVault
+16 Shotput
+17 SoccerPenalty
+18 TennisSwing
+19 ThrowDiscus
+20 VolleyballSpiking
+21 Walk
+22 Sit
+23 StandUp                  The act of standing up.
+24 Stand
+25 Run
+26 Jump
+27 Fall                     The act of falling down.
+28 PickUp                   The act of picking up an object.
+29 Hug
+30 PatPerson                Patting another person anywhere, such as pat on back, pat on shoulder, pat on head.
+31 HighFive
+32 FistPump                 Pumping the fist in celebration.  In other words, making a fist with the hand, and bending the elbow in a pump motion.
+33 ClapHands                Clapping two hands together.
+34 OneRaisedArmCelebrate    Celebrating with one arm extended straight.
+35 TwoRaisedArmCelebrate    Celebrating with two arms extended straight.
+36 Throw                    Throwing something with force.
+37 Drop                     Releasing something without using force.
+38 OneHandedCatch           Catching something with one hand.
+39 TwoHandedCatch           Catching something with two hands.
+40 BodyRoll                 Rolling head over heels, like a somersault.
+41 BodyTurn                 Turning the body side to side or in circles.
+42 BodyBend                 Bending the body at the waist, keeping the legs straight.
+43 BodyContract             Contracting the body, with bent knees.
+44 Squat                    Contracting the body while feet are on the ground.  (So the umpire in baseball is often both squatting and contracting, but a diver in air is only contracting)
+45 BasketballDribble        Dribbling the basketball.
+46 BasketballPass           Passing the basketball from one person to another.
+47 BasketballBlock          Putting one or two hands in the air in an attempt to block a basketball shot.
+48 BasketballShot           An attempt to put the basketball in the basketball hoop.
+49 BasketballGuard          Guarding a basketball player, often from another team.
+50 VolleyballSet            One of the standard volleyball moves comprising serve,bump,set,spike,block.
+51 VolleyballBump           One of the standard volleyball moves comprising serve,bump,set,spike,block.
+52 VolleyballBlock          One of the standard volleyball moves comprising serve,bump,set,spike,block.
+53 VolleyballServe          One of the standard volleyball moves comprising serve,bump,set,spike,block.
+54 WeightliftingClean       The 1st step of weightlifting, when a person lifts the weights from the floor to a stable position in front of their chest.
+55 WeightliftingJerk        The 2nd step of weightlifting, when a person lifts the weights from the stable position in front of their chest to above their head.
+56 HammerThrowWindUp        The 1st step of hammer throw, when a person spins the hammer in slower large circles around them.
+57 HammerThrowSpin          The 2nd step of hammer throw, when a person spins the hammer very fast in circles.
+58 HammerThrowRelease       The 3rd step of hammer throw, when a person releases the hammer.
+59 PoleVaultPlantPole       During the pole vault sport, when a person puts the long pole into the ground, before they jump.
+60 ShotPutBend              During the shot put sport, when a person bends down with the shot put, before throwing it.
+61 DiscusWindUp             The 1st step of discus throw, when a person spins in circles holding the discus.
+62 DiscusRelease            The 2nd step of discus throw, when a person releases the discus.
+63 TalkToCamera             Facing the camera and talking to it.
+64 CloseUpTalkToCamera      Facing the camera and talking to it, but the person is only visible above the waist.
+65 NoHuman                  There is no human visible.
+
+-----------------------------------------
+
+MultiTHUMOS is licensed under the Creative Commons CC BY 4.0 license.
