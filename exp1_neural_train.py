@@ -56,7 +56,7 @@ def get_labels(se_list, cfg_train):
                             data_dec_se["end_f_hj"] == se_interval[1])].copy(deep=True)
 
             begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
-            if begin_ev == 0:
+            if begin_ev <= 0:
                 dec_se["begin_f_run"] = se_interval[0]
                 
             action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
@@ -78,8 +78,8 @@ def get_labels(se_list, cfg_train):
 
             begin_ev = _set_nn_value(dec_se["begin_f_ht_wu"].values[0] - se_interval[0])
             
-            if begin_ev == 0:
-                dec_se["begin_f_ht_wu_run"] = se_interval[0]
+            if begin_ev <= 0:
+                dec_se["begin_f_ht_wu"] = se_interval[0]
             
             action_duration = dec_se["end_f_ht_wu"].values[0] - dec_se["begin_f_ht_wu"].values[0]
 

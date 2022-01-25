@@ -56,7 +56,7 @@ def get_labels(se_list, cfg_train):
                             data_dec_se["end_f_hj"] == se_interval[1])].copy(deep=True)
 
             begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
-            if begin_ev == 0:
+            if begin_ev <= 0:
                 dec_se["begin_f_run"] = se_interval[0]
                 
             action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
@@ -78,8 +78,8 @@ def get_labels(se_list, cfg_train):
 
             begin_ev = _set_nn_value(dec_se["begin_f_ht_wu"].values[0] - se_interval[0])
             
-            if begin_ev == 0:
-                dec_se["begin_f_ht_wu_run"] = se_interval[0]
+            if begin_ev <= 0:
+                dec_se["begin_f_ht_wu"] = se_interval[0]
             
             action_duration = dec_se["end_f_ht_wu"].values[0] - dec_se["begin_f_ht_wu"].values[0]
 
@@ -218,14 +218,15 @@ def evaluate(
             
             assert len(outputs) == len(labels_clip)
             
-            epochs_predictions["epoch"].append(epoch)
-            epochs_predictions["video"].append(video)
-            epochs_predictions["gt_se_names"].append(gt_se_name)
-            epochs_predictions["pred_se_names"].append(predicted_se_name)
-            epochs_predictions["se_interval"].append(se_interval)
-            epochs_predictions["ground_truth"].append(labels_clip)
-            epochs_predictions["raw_outputs"].append(raw_outputs.cpu().data.numpy())
-            epochs_predictions["predictions"].append(mnz_pred)
+            if epochs_predictions is not None:
+                epochs_predictions["epoch"].append(epoch)
+                epochs_predictions["video"].append(video)
+                epochs_predictions["gt_se_names"].append(gt_se_name)
+                epochs_predictions["pred_se_names"].append(predicted_se_name)
+                epochs_predictions["se_interval"].append(se_interval)
+                epochs_predictions["ground_truth"].append(labels_clip)
+                epochs_predictions["raw_outputs"].append(raw_outputs.cpu().data.numpy())
+                epochs_predictions["predictions"].append(mnz_pred)
             
             se_predictions = np.zeros((outputs.shape[0], num_mnz_models))
             se_predictions[:, se_labels[predicted_se_name]] = 1
@@ -300,7 +301,6 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     learning_rate = cfg_train["learning_rate"]
     weight_decay = cfg_train["weight_decay"]
     optimizer = cfg_train["optimizer"]
-    f1_threshold = cfg_train["f1_threshold"]
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
     avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
@@ -308,9 +308,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
-    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}_f1th{}/".format(run_id,
+    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id,
                                                                      num_epochs, batch_size, learning_rate,
-                                                                     weight_decay, optimizer, f1_threshold)
+                                                                     weight_decay, optimizer)
     saved_models_dir += train_info
     os.makedirs(saved_models_dir, exist_ok=True)
     
@@ -367,10 +367,16 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     num_training_examples = len(se_train)
     
     # fmap_score = evaluate(
-    #     24, "Train", se_train, features_train, labels_train_dec, nn_model, bceWLL, num_clips, f1_threshold,
-    #     mnz_models, avg_actions_durations_s, use_cuda, classes_names, None, brief_summary
+    #     5, "Train", se_train, features_train, labels_train, labels_train_textual, nn_model, bceWLL, num_clips,
+    #     mnz_models, structured_events, avg_actions_durations_s, use_cuda, classes_names, None, None, None
     # )
-    
+    # breakpoint()
+    # fmap_score = evaluate(
+    #     epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips,
+    #     mnz_models,
+    #     structured_events, avg_actions_durations_s, use_cuda, classes_names, writer_val, brief_summary,
+    #     epochs_predictions["val"]
+    # )
     optimizer.zero_grad()
 
     for epoch in range(1, num_epochs + 1):
@@ -417,6 +423,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             
             mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], nn.Sigmoid()(outputs_transpose), avg_actions_durations_f)
             #if se_name == "HammerThrow": breakpoint()
+            
             start_time = time.time()
             sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
             end_time = time.time()
