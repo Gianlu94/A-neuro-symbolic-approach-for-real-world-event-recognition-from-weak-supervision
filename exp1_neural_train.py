@@ -3,183 +3,15 @@ import pickle
 import random
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
-import json
-import pandas as pd
 import torch
 from torch.autograd.variable import Variable
 from torch import nn
-from tqdm import tqdm
-import pymzn
-from sklearn.metrics import (
-    average_precision_score, confusion_matrix, ConfusionMatrixDisplay, precision_recall_fscore_support
-)
+from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from utils import convert_to_float_tensor, get_avg_actions_durations_in_f, get_textual_label_from_tensor
-from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
-
-data_dec = {}
-
-
-def _set_nn_value(input):
-    if input < 0:
-        return 0
-    return input
-
-
-def _set_least_value(v1, v2):
-    if v1 >= v2:
-        return v2
-    else:
-        return v1
-
-
-def get_labels(se_list, cfg_train):
-    dec_labels = {}
-
-    for example in se_list:
-        video, se_name, se_interval = example[0], example[1], example[4]
-
-        if se_name not in data_dec:
-            data_dec[se_name] = pd.read_csv(cfg_train["path_to_filtered_data"] + se_name + ".csv")
-
-        data_dec_se = data_dec[se_name]
-
-        intervals_events = []
-
-        if se_name == "HighJump":
-            # get decomposition of the current se
-            dec_se = data_dec_se[
-                (data_dec_se["video"] == video) & (data_dec_se["begin_f_hj"] == se_interval[0]) & (
-                            data_dec_se["end_f_hj"] == se_interval[1])].copy(deep=True)
-
-            begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
-            if begin_ev <= 0:
-                dec_se["begin_f_run"] = se_interval[0]
-                
-            action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
-            
-            intervals_events.append([begin_ev, begin_ev + action_duration])
-
-            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
-
-            begin_ev = dec_se["begin_f_fall"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev, begin_ev + _set_least_value(dec_se["end_f_fall"].values[0], se_interval[1]) - dec_se["begin_f_fall"].values[0]])
-            
-            labels_indices = list(range(0, 3))
-        elif se_name == "HammerThrow":
-            # get decomposition of the current se
-            dec_se = data_dec_se[
-                (data_dec_se["video"] == video) & (data_dec_se["begin_f_ht"] == se_interval[0]) & (
-                        data_dec_se["end_f_ht"] == se_interval[1])].copy(deep=True)
-
-            begin_ev = _set_nn_value(dec_se["begin_f_ht_wu"].values[0] - se_interval[0])
-            
-            if begin_ev <= 0:
-                dec_se["begin_f_ht_wu"] = se_interval[0]
-            
-            action_duration = dec_se["end_f_ht_wu"].values[0] - dec_se["begin_f_ht_wu"].values[0]
-
-            intervals_events.append([begin_ev, begin_ev + action_duration])
-
-            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
-
-            begin_ev = dec_se["begin_f_ht_r"].values[0] - se_interval[0]
-            intervals_events.append(
-                [begin_ev, begin_ev + _set_least_value(dec_se["end_f_ht_r"].values[0], se_interval[1]) - dec_se["begin_f_ht_r"].values[0]])
-
-            labels_indices = list(range(3, 6))
-
-        rows = []
-        columns = []
-     
-        for i in labels_indices:
-            begin, end = int(intervals_events[0][0]), int(intervals_events[0][1])
-            rows += [i] * (end-begin+1)
-            columns += [j for j in range(begin, end+1)]
-            intervals_events.pop(0)
-        
-        label_key = "{}-{}-{}".format(video, se_name, se_interval)
-        dec_labels[label_key] = torch.zeros((cfg_train["classes"], se_interval[1]-se_interval[0]+1))
-        
-        dec_labels[label_key][rows, columns] = 1
-        dec_labels[label_key] = dec_labels[label_key].transpose(0, 1)
-
-    return dec_labels
-
-
-# get avg labels for neural baseline
-def get_avg_labels(se_list, cfg_train):
-    avg_labels = {}
-    avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
-    classes_names = cfg_train["classes_names"]
-    
-    for example in se_list:
-        video, se_name, duration, num_features, se_interval = \
-            example[0], example[1], example[2], example[3], example[4]
-
-        # get duration of s
-        se_duration = se_interval[1] - se_interval[0] + 1
-        
-        avg_actions_durations_f = get_avg_actions_durations_in_f(
-            se_name, duration, num_features, avg_actions_durations_s)
-        
-        avg_values = list(avg_actions_durations_f.values())
-        tot_avg = sum(avg_values[1:])
-
-        label_tensor = torch.zeros((se_duration, len(classes_names)))
-        prev_num_frames = 0
-        while prev_num_frames != se_duration:
-            
-            rows, columns = [], []
-            inc_action = None
-            dec_action = None
-            values = avg_values[1:]
-            
-            # this may happen due to the round operation
-            if prev_num_frames == (se_duration - 1):
-                # randomly increment one of the actions
-                prev_num_frames = 0
-                inc_action = random.randint(0, len(values)-1)
-            elif prev_num_frames > se_duration:
-                # randomly decrement one of the actions
-                prev_num_frames = 0
-                dec_action = random.randint(0, len(values)-1)
-            
-            for i, avg_value in enumerate(values):
-                
-                num_frames_to_label = round(se_duration * avg_value / tot_avg)
-                
-                # increment/decrement action i of one frame (if needed)
-                if inc_action is not None and inc_action == i:
-                    num_frames_to_label += 1
-                if dec_action is not None and dec_action == i:
-                    num_frames_to_label -= 1
-                    
-                rows.extend(list(range(prev_num_frames, prev_num_frames+num_frames_to_label)))
-                
-                if se_name == "HammerThrow":
-                    if i == 0:
-                        columns.extend([3] * num_frames_to_label)
-                    elif i == 1:
-                        columns.extend([4] * num_frames_to_label)
-                    elif i == 2:
-                        columns.extend([5] * num_frames_to_label)
-                else:
-                    columns.extend([i] * num_frames_to_label)
-                    
-                #print("action {}: begin {} end {}".format(i, prev_num_frames, prev_num_frames+num_frames_to_label))
-                prev_num_frames += num_frames_to_label
-            #print("{} -- {}".format(se_duration, prev_num_frames))
-        
-        assert len(rows) == len(columns)
-        label_tensor[rows, columns] = 1
-        avg_labels["{}-{}-{}".format(video, se_name, se_interval)] = label_tensor
-    return avg_labels
+from dataset import get_labels, get_avg_labels
+from utils import convert_to_float_tensor
 
 
 def get_se_prediction(outputs, f1_threshold, se_labels):
@@ -235,7 +67,6 @@ def evaluate(
         
         labels_clip = labels[example_id]
         avg_labels_clip = avg_labels[example_id]
-        
         # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
         with torch.no_grad():
             if num_clips > 0:
@@ -294,9 +125,6 @@ def evaluate(
     # compute metrics
     actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
     
-    # cf_matrix = confusion_matrix(np.argmax(ground_truth, 1), np.argmax(predictions, 1))
-    # cf_matrix_to_display = ConfusionMatrixDisplay(confusion_matrix=cf_matrix, display_labels=classes_names)
-    # cf_matrix_to_display.plot(xticks_rotation="vertical", cmap=plt.cm.Blues, values_format='g')
     actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
     
     actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
@@ -322,7 +150,6 @@ def evaluate(
     )
     
     print(metrics_to_print, flush=True)
-    brief_summary.write(metrics_to_print)
     
     if writer is not None:
         for i, class_name in enumerate(classes_names + se_names):
@@ -338,7 +165,7 @@ def evaluate(
         writer.add_scalar('Avg Recall', np.nanmean(actions_recall), epoch)
         writer.add_scalar('Avg AP', np.nanmean(actions_avg_precision_score), epoch)
     
-    return np.nanmean(actions_avg_precision_score)  # , cf_matrix_to_display
+    return np.nanmean(actions_avg_precision_score)
 
 
 def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset):
@@ -365,10 +192,6 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
                                                                      weight_decay, optimizer, f1_threshold)
     saved_models_dir += train_info
     os.makedirs(saved_models_dir, exist_ok=True)
-    
-    # path_to_cf = cfg_dataset.tf_logs_dir + train_info + "confusion_matrix/"
-    # for split in ["train", "val", "test"]:
-    #     os.makedirs(path_to_cf + split + "/", exist_ok=True)
 
     epochs_predictions = {
         "train":
@@ -484,25 +307,15 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
-        # TODO: for now evaluation is done after each epoch, change it
-        # evaluate(
-        #     epoch, "Train", se_train, features_train, nn_model, num_clips, original_classes, f1_threshold, cfg_dataset, use_cuda,
-        #     cfg_train["range_classes_to_train"], classes_names, writer_train, brief_summary
-        # )
-        # plt.savefig(path_to_cf + "train/cf_epoch_{}.png".format(epoch))
         fmap_score = evaluate(
             epoch, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips, f1_threshold,
             structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
-        #plt.savefig(path_to_cf + "val/cf_epoch_{}.png".format(epoch))
         
         if fmap_score > max_fmap_score:
             best_model_ep = epoch
             max_fmap_score = fmap_score
             
-        #     for f in os.listdir(saved_models_dir):
-        #         os.remove(os.path.join(saved_models_dir, f))
-
         state = {
             "epoch": epoch,
             "state_dict": nn_model.state_dict(),
@@ -529,7 +342,6 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
         pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
 
-    #plt.savefig(path_to_cf + "test/cf_best_model.png")
     brief_summary.close()
     print(fmap_score)
     print(best_model_ep)

@@ -11,8 +11,7 @@ from mlad.model import build_model
 from exp1_mnz_train import train_exp1_mnz
 from exp1_neural_train import train_exp1_neural
 
-from utils import load_data, get_avg_actions_durations_in_f
-from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
+from dataset import load_data
 
 
 # used to get specific structured events from the list

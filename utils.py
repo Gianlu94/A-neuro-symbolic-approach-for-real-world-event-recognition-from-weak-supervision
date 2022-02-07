@@ -1,6 +1,5 @@
 import copy
 import os
-import random
 import json
 
 import torch
@@ -10,8 +9,6 @@ import numpy as np
 import pandas as pd
 
 # se = structured event
-
-
 def convert_to_float_tensor(input):
     if isinstance(input, list):
         if torch.cuda.is_available():
@@ -62,38 +59,6 @@ def get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_
         avg_actions_durations_f[action] = avg_action_f
     
     return avg_actions_durations_f
-
-
-def load_data(mode, path_to_filtered_data, path_to_annotations_json, features):
-    # list containing element of the form <video, se_name, duration_s, num_features, interval_se_f, interval_se_s>
-    # *_s -> seconds, *_f -> features
-    se_list = []
-
-    # load annotations
-    with open(path_to_annotations_json, "r") as f:
-        annotations = json.load(f)
-
-    # names of se files -> name_of_structured_event.csv
-    se_names = os.listdir(path_to_filtered_data)
-
-    for se_name in se_names:
-        if "LongJump" not in se_name:
-            # get complex events that respect the decomposition in sequence of atomic actions
-            filtered_se_df = pd.read_csv(path_to_filtered_data + "{}".format(se_name)).iloc[:, 1:6]
-            filtered_se_df = filtered_se_df[filtered_se_df["video"].str.contains(mode)]
-            filtered_se_df.columns = ["video", "begin_s", "end_s", "begin_f", "end_f"]
-
-            # get the name of the structured event by removing the extension
-            se_name = se_name.split(".")[0]
-
-            # se intervals
-            se_intervals = [
-                (row[1]["video"], se_name, annotations[row[1]["video"]]["duration"], len(features[row[1]["video"]]),
-                 (row[1]["begin_f"], row[1]["end_f"]), (row[1]["begin_s"], row[1]["end_s"])) for row in filtered_se_df.iterrows()]
-            
-            se_list.extend(se_intervals)
-
-    return se_list
 
 
 def _get_textual_desc_from_label(se_name, label):
@@ -169,7 +134,6 @@ def get_textual_label_from_tensor(labels):
         textual_labels[label_key] = textual_label
     
     return textual_labels
-        
-    
+
 
 
