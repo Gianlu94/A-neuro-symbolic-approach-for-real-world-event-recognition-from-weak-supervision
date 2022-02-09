@@ -21,26 +21,50 @@ def load_data(mode, path_to_filtered_data, path_to_annotations_json, features):
     se_names = os.listdir(path_to_filtered_data)
     
     for se_name in se_names:
-        if "LongJump" not in se_name:
-            # get complex events that respect the decomposition in sequence of atomic actions
-            filtered_se_df = pd.read_csv(path_to_filtered_data + "{}".format(se_name)).iloc[:, 1:6]
-            filtered_se_df = filtered_se_df[filtered_se_df["video"].str.contains(mode)]
-            filtered_se_df.columns = ["video", "begin_s", "end_s", "begin_f", "end_f"]
-            
-            # get the name of the structured event by removing the extension
-            se_name = se_name.split(".")[0]
-            
-            # se intervals
-            se_intervals = [
-                (row[1]["video"], se_name, annotations[row[1]["video"]]["duration"], len(features[row[1]["video"]]),
-                 (row[1]["begin_f"], row[1]["end_f"]), (row[1]["begin_s"], row[1]["end_s"])) for row in
-                filtered_se_df.iterrows()]
-            
-            se_list.extend(se_intervals)
+        # get complex events that respect the decomposition in sequence of atomic actions
+        filtered_se_df = pd.read_csv(path_to_filtered_data + "{}".format(se_name)).iloc[:, 1:6]
+        filtered_se_df = filtered_se_df[filtered_se_df["video"].str.contains(mode)]
+        filtered_se_df.columns = ["video", "begin_s", "end_s", "begin_f", "end_f"]
+        
+        # get the name of the structured event by removing the extension
+        se_name = se_name.split(".")[0]
+        
+        # se intervals
+        se_intervals = [
+            (row[1]["video"], se_name, annotations[row[1]["video"]]["duration"], len(features[row[1]["video"]]),
+             (row[1]["begin_f"], row[1]["end_f"]), (row[1]["begin_s"], row[1]["end_s"])) for row in
+            filtered_se_df.iterrows()]
+        
+        se_list.extend(se_intervals)
     
     return se_list
 
 
+# used to get specific structured events from the list
+def filter_data(se_list, se_name):
+    filtered_list = []
+    for se in se_list:
+        if se[1] == se_name:
+            filtered_list.append(se)
+
+    return filtered_list
+
+
+def get_validation_set(all_se_train, se_names, ratio):
+    train_split = []
+    val_split = []
+    
+    for se_name in se_names:
+        se_list = filter_data(all_se_train, se_name)
+        num_train_ex = len(se_list)
+        num_val_ex = round(num_train_ex * ratio)
+        
+        val_exs = random.sample(se_list, num_val_ex)
+        train_split += list(set(se_list) - set(val_exs))
+        val_split += val_exs
+        
+    return train_split, val_split
+   
 data_dec = {}
 
 
@@ -117,6 +141,66 @@ def get_labels(se_list, cfg_train):
                  dec_se["begin_f_ht_r"].values[0]])
             
             labels_indices = list(range(3, 6))
+        elif se_name == "LongJump":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_lj"] == se_interval[0]) & (
+                        data_dec_se["end_f_lj"] == se_interval[1])].copy(deep=True)
+
+            begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
+            if begin_ev <= 0:
+                dec_se["begin_f_run"] = se_interval[0]
+
+            action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
+
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev,
+                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
+                                     dec_se["begin_f"].values[0]])
+
+            labels_indices = list(range(0, 2))
+        elif se_name == "CleanAndJerk":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_cj"] == se_interval[0]) & (
+                        data_dec_se["end_f_cj"] == se_interval[1])].copy(deep=True)
+    
+            begin_ev = _set_nn_value(dec_se["begin_f_wlc"].values[0] - se_interval[0])
+            if begin_ev <= 0:
+                dec_se["begin_f_wlc"] = se_interval[0]
+    
+            action_duration = dec_se["end_f_wlc"].values[0] - dec_se["begin_f_wlc"].values[0]
+    
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+    
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev,
+                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
+                                     dec_se["begin_f"].values[0]])
+    
+            labels_indices = list(range(6, 8))
+        elif se_name == "ThrowDiscus":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_td"] == se_interval[0]) & (
+                        data_dec_se["end_f_td"] == se_interval[1])].copy(deep=True)
+    
+            begin_ev = _set_nn_value(dec_se["begin_f_td_wu"].values[0] - se_interval[0])
+            if begin_ev <= 0:
+                dec_se["begin_f_td_wu"] = se_interval[0]
+    
+            action_duration = dec_se["end_f_td_wu"].values[0] - dec_se["begin_f_td_wu"].values[0]
+    
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+    
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev,
+                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
+                                     dec_se["begin_f"].values[0]])
+    
+            labels_indices = list(range(8, 10))
         
         rows = []
         columns = []
@@ -147,8 +231,8 @@ def get_avg_labels(se_list, cfg_train):
             example[0], example[1], example[2], example[3], example[4]
         
         # get duration of s
-        se_duration = se_interval[1] - se_interval[0] + 1
-        
+        se_duration = (se_interval[1] - se_interval[0]) + 1
+
         avg_actions_durations_f = get_avg_actions_durations_in_f(
             se_name, duration, num_features, avg_actions_durations_s)
         
@@ -157,8 +241,8 @@ def get_avg_labels(se_list, cfg_train):
         
         label_tensor = torch.zeros((se_duration, len(classes_names)))
         prev_num_frames = 0
+
         while prev_num_frames != se_duration:
-            
             rows, columns = [], []
             inc_action = None
             dec_action = None
@@ -193,6 +277,16 @@ def get_avg_labels(se_list, cfg_train):
                         columns.extend([4] * num_frames_to_label)
                     elif i == 2:
                         columns.extend([5] * num_frames_to_label)
+                elif se_name == "CleanAndJerk":
+                    if i == 0:
+                        columns.extend([6] * num_frames_to_label)
+                    elif i == 1:
+                        columns.extend([7] * num_frames_to_label)
+                elif se_name == "ThrowDiscus":
+                    if i == 0:
+                        columns.extend([8] * num_frames_to_label)
+                    elif i == 1:
+                        columns.extend([9] * num_frames_to_label)
                 else:
                     columns.extend([i] * num_frames_to_label)
                 

@@ -11,18 +11,7 @@ from mlad.model import build_model
 from exp1_mnz_train import train_exp1_mnz
 from exp1_neural_train import train_exp1_neural
 
-from dataset import load_data
-
-
-# used to get specific structured events from the list
-def _filter_data(se_list, se_name):
-    filtered_list = []
-    for se in se_list:
-        if se[1] == se_name:
-            filtered_list.append(se)
-    
-    return filtered_list
-
+from dataset import load_data, get_validation_set
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training ns framework")
@@ -81,16 +70,7 @@ if __name__ == '__main__':
     # test list of se event
     se_test = load_data("test", path_to_filtered_data, cfg_dataset.annotations_file, features_test)
 
-    # get a balanced validation set
-    se_train_hj = _filter_data(se_train, "HighJump")
-    se_val_hj = se_train_hj[160:]
-    se_train_hj = se_train_hj[:160]
-    se_train_ht = _filter_data(se_train, "HammerThrow")
-    se_val_ht = se_train_ht[150:]
-    se_train_ht = se_train_ht[:150]
-    
-    se_train = se_train_hj + se_train_ht
-    se_val = se_val_hj + se_val_ht
+    se_train, se_val = get_validation_set(se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"])
 
     if "path_to_mnz_models" in cfg_train:
         path_to_mnz = cfg_train["path_to_mnz_models"]

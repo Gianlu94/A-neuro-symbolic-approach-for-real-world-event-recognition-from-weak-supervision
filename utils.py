@@ -1,12 +1,10 @@
 import copy
-import os
-import json
 
 import torch
 import h5py
 
 import numpy as np
-import pandas as pd
+
 
 # se = structured event
 def convert_to_float_tensor(input):
@@ -40,14 +38,7 @@ def convert_to_float_tensor(input):
 
 def get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_durations_s):
     fps = num_features / duration
-    avg_actions_durations_f = {}
-    
-    if se_name == "HighJump":
-        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["HighJump"])
-    elif se_name == "LongJump":
-        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["LongJump"])
-    elif se_name == "HammerThrow":
-        avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s["HammerThrow"])
+    avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s[se_name])
 
     for action in avg_actions_durations_f.keys():
         avg_action_f = 0

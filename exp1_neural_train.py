@@ -20,10 +20,16 @@ def get_se_prediction(outputs, f1_threshold, se_labels):
     inverted_se = {value: key for key, value in se_labels.items()}
   
     for i in range(num_se):
-        if i == 0:
+        if i == 0:    # HighJump
             scores[i] = torch.mean(outputs[:, :3][torch.where(outputs[:, :3] > f1_threshold)])
-        elif i == 1:
-            scores[i] = torch.mean(outputs[:, 3:][torch.where(outputs[:, 3:] > f1_threshold)])
+        elif i == 1:  # HammerThrow
+            scores[i] = torch.mean(outputs[:, 3:6][torch.where(outputs[:, 3:6] > f1_threshold)])
+        elif i == 2:  # LongJump
+            scores[i] = torch.mean(outputs[:, :2][torch.where(outputs[:, :2] > f1_threshold)])
+        elif i == 3:  # CleanAndJerk
+            scores[i] = torch.mean(outputs[:, 6:8][torch.where(outputs[:, 6:8] > f1_threshold)])
+        elif i == 4:  # ThrowDiscus
+            scores[i] = torch.mean(outputs[:, 8:10][torch.where(outputs[:, 8:10] > f1_threshold)])
  
     scores = torch.nan_to_num(scores)
     
@@ -89,7 +95,7 @@ def evaluate(
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
 
-            example_loss = loss(outputs, avg_labels_clip)
+            example_loss = loss(outputs, avg_labels_clip)#labels_clip)
             tot_loss += example_loss
             
             outputs = nn.Sigmoid()(outputs)
@@ -148,8 +154,9 @@ def evaluate(
         mode, epoch, str(actions_avg_precision_score),
         mode, epoch, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
     )
-    
+
     print(metrics_to_print, flush=True)
+    brief_summary.write(metrics_to_print)
     
     if writer is not None:
         for i, class_name in enumerate(classes_names + se_names):
@@ -229,7 +236,6 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    
     labels_train = get_labels(se_train, cfg_train)
     avg_labels_train = get_avg_labels(se_train, cfg_train)
     
@@ -272,7 +278,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             
             outputs = out['final_output'][0]
 
-            example_loss = bceWLL(outputs, avg_labels_clip)
+            example_loss = bceWLL(outputs, avg_labels_clip) #labels_train[id_label])
             batch_loss += example_loss
             
             example_loss.backward()
