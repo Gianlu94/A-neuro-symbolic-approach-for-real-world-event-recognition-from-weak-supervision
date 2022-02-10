@@ -40,10 +40,10 @@ if __name__ == '__main__':
     dim_of_features = cfg_train["dim_of_features"]
 
     cfg_train["use_cuda"] = use_cuda
-    
+    seed = cfg_train["seed"]
     # set seed
-    random.seed(cfg_train["seed"])
-    torch.manual_seed(cfg_train["seed"])
+    random.seed(seed)
+    torch.manual_seed(seed)
     
     nn_model = build_model(
         model_version, num_clips, cfg_train["classes"], dim_of_features, num_clips, num_mlad_layers)
@@ -70,7 +70,9 @@ if __name__ == '__main__':
     # test list of se event
     se_test = load_data("test", path_to_filtered_data, cfg_dataset.annotations_file, features_test)
 
-    se_train, se_val = get_validation_set(se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"])
+    se_train, se_val = get_validation_set(
+        se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"], seed
+    )
 
     if "path_to_mnz_models" in cfg_train:
         path_to_mnz = cfg_train["path_to_mnz_models"]

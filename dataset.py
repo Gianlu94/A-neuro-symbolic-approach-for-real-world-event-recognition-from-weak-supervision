@@ -50,23 +50,24 @@ def filter_data(se_list, se_name):
     return filtered_list
 
 
-def get_validation_set(all_se_train, se_names, ratio):
+def get_validation_set(all_se_train, se_names, ratio, seed):
     train_split = []
     val_split = []
     
+    rng = random.Random(seed)
     for se_name in se_names:
         se_list = filter_data(all_se_train, se_name)
         num_train_ex = len(se_list)
         num_val_ex = round(num_train_ex * ratio)
         
-        val_exs = random.sample(se_list, num_val_ex)
+        val_exs = rng.sample(se_list, num_val_ex)
         train_split += list(set(se_list) - set(val_exs))
         val_split += val_exs
         
+    train_split.sort()
     return train_split, val_split
    
 data_dec = {}
-
 
 def _set_nn_value(input):
     if input < 0:

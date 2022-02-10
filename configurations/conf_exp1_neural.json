@@ -48,8 +48,8 @@
     },
     "CleanAndJerk": {
         "avgCJ": 10.9,
-        "avgCJ_WLC": 3.3964,
-        "avgCJ_WLJ": 2.4617
+        "avgWLC": 3.3964,
+        "avgWLJ": 2.4617
     },
     "ThrowDiscus": {
         "avgTD": 3.1816,

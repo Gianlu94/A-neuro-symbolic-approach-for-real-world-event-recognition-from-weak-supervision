@@ -271,12 +271,14 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     #     epochs_predictions["val"]
     # )
     optimizer.zero_grad()
+    train_indices = np.arange(len(se_train))
+    rng = random.Random(cfg_train["seed"])
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
         nn_model.train()
 
-        random.shuffle(se_train)
+        rng.shuffle(se_train)
 
         tot_time_mnz = 0.
         epoch_loss = 0.
