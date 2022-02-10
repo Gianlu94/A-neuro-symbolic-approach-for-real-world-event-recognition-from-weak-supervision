@@ -79,9 +79,8 @@ if __name__ == '__main__':
         mnz_models = {}
         for mnz_file_name in mnz_files_names:
             se_name = mnz_file_name.split(".")[0]
-            if se_name == "HighJump" or se_name == "HammerThrow":
-                with open(path_to_mnz + mnz_file_name, "r") as mnz_file:
-                    mnz_models[se_name] = mnz_file.read()
+            with open(path_to_mnz + mnz_file_name, "r") as mnz_file:
+                mnz_models[se_name] = mnz_file.read()
 
         train_exp1_mnz(
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models

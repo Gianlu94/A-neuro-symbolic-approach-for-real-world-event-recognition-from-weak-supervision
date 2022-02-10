@@ -101,7 +101,7 @@ def evaluate(
             raw_outputs = nn.Sigmoid()(outputs)
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs, classes_names)
+            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs)
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
             
             example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
@@ -203,6 +203,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     optimizer = cfg_train["optimizer"]
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
+    classes_names_abb = cfg_train["classes_names_abb"]
     avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
     structured_events = cfg_train["structured_events"]
     
@@ -247,16 +248,12 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     features_train = convert_to_float_tensor(features_train)
     features_test = convert_to_float_tensor(features_test)
 
-    # se_train = se_train[:5]
-    # se_val = [se_val[1]] + [se_val[-1]]
-    # se_test = [se_test[1]] + [se_test[-1]]
-
     labels_train = get_labels(se_train, cfg_train)
-    labels_train_textual = get_textual_label_from_tensor(labels_train)
+    labels_train_textual = get_textual_label_from_tensor(labels_train, classes_names_abb)
     labels_val = get_labels(se_val, cfg_train)
-    labels_val_textual = get_textual_label_from_tensor(labels_val)
+    labels_val_textual = get_textual_label_from_tensor(labels_val, classes_names_abb)
     labels_test = get_labels(se_test, cfg_train)
-    labels_test_textual = get_textual_label_from_tensor(labels_test)
+    labels_test_textual = get_textual_label_from_tensor(labels_test, classes_names_abb)
     
     max_fmap_score = 0.
     
@@ -274,11 +271,11 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     #     epochs_predictions["val"]
     # )
     optimizer.zero_grad()
-
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
         nn_model.train()
+
         random.shuffle(se_train)
 
         tot_time_mnz = 0.
@@ -287,6 +284,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         
         for index, example_train in enumerate(se_train):
             print(example_train)
+            
             # get video, duration, num_features, se name and interval where the se is happening
             video, se_name, duration, num_features, se_interval = \
                 example_train[0], example_train[1], example_train[2], example_train[3], example_train[4]
@@ -310,7 +308,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             tot_time_example = 0
             
             avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_durations_s)
-            
+
             mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], nn.Sigmoid()(outputs_transpose), avg_actions_durations_f)
             
             start_time = time.time()
