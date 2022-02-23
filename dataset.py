@@ -5,8 +5,6 @@ import random
 import pandas as pd
 import torch
 
-from utils import get_avg_actions_durations_in_f
-
 
 def load_data(mode, path_to_filtered_data, path_to_annotations_json, features):
     # list containing element of the form <video, se_name, duration_s, num_features, interval_se_f, interval_se_s>
@@ -22,7 +20,7 @@ def load_data(mode, path_to_filtered_data, path_to_annotations_json, features):
     
     for se_name in se_names:
         # get complex events that respect the decomposition in sequence of atomic actions
-        filtered_se_df = pd.read_csv(path_to_filtered_data + "{}".format(se_name)).iloc[:, 1:6]
+        filtered_se_df = pd.read_csv(path_to_filtered_data + "{}".format(se_name), encoding='utf-7').iloc[:, 1:6]
         filtered_se_df = filtered_se_df[filtered_se_df["video"].str.contains(mode)]
         filtered_se_df.columns = ["video", "begin_s", "end_s", "begin_f", "end_f"]
         
@@ -66,31 +64,21 @@ def get_validation_set(all_se_train, se_names, ratio, seed):
         
     train_split.sort()
     return train_split, val_split
+
    
 data_dec = {}
-
-def _set_nn_value(input):
-    if input < 0:
-        return 0
-    return input
-
-
-def _set_least_value(v1, v2):
-    if v1 >= v2:
-        return v2
-    else:
-        return v1
 
 
 def get_labels(se_list, cfg_train):
     dec_labels = {}
     
     for example in se_list:
+        print(example)
         video, se_name, se_interval = example[0], example[1], example[4]
         
         if se_name not in data_dec:
-            data_dec[se_name] = pd.read_csv(cfg_train["path_to_filtered_data"] + se_name + ".csv")
-        
+            data_dec[se_name] = pd.read_csv(cfg_train["path_to_filtered_data"] + se_name + ".csv", encoding='utf-7')
+
         data_dec_se = data_dec[se_name]
         
         intervals_events = []
@@ -101,111 +89,119 @@ def get_labels(se_list, cfg_train):
                 (data_dec_se["video"] == video) & (data_dec_se["begin_f_hj"] == se_interval[0]) & (
                         data_dec_se["end_f_hj"] == se_interval[1])].copy(deep=True)
             
-            begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
-            if begin_ev <= 0:
-                dec_se["begin_f_run"] = se_interval[0]
-            
+            begin_ev = dec_se["begin_f_run"].values[0] - se_interval[0]
             action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
-            
             intervals_events.append([begin_ev, begin_ev + action_duration])
             
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
             intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
             
             begin_ev = dec_se["begin_f_fall"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev,
-                                     begin_ev + _set_least_value(dec_se["end_f_fall"].values[0], se_interval[1]) -
-                                     dec_se["begin_f_fall"].values[0]])
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f_fall"].values[0] - dec_se["begin_f_fall"].values[0]])
             
             labels_indices = list(range(0, 3))
-        elif se_name == "HammerThrow":
-            # get decomposition of the current se
-            dec_se = data_dec_se[
-                (data_dec_se["video"] == video) & (data_dec_se["begin_f_ht"] == se_interval[0]) & (
-                        data_dec_se["end_f_ht"] == se_interval[1])].copy(deep=True)
-            
-            begin_ev = _set_nn_value(dec_se["begin_f_ht_wu"].values[0] - se_interval[0])
-            
-            if begin_ev <= 0:
-                dec_se["begin_f_ht_wu"] = se_interval[0]
-            
-            action_duration = dec_se["end_f_ht_wu"].values[0] - dec_se["begin_f_ht_wu"].values[0]
-            
-            intervals_events.append([begin_ev, begin_ev + action_duration])
-            
-            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
-            
-            begin_ev = dec_se["begin_f_ht_r"].values[0] - se_interval[0]
-            intervals_events.append(
-                [begin_ev, begin_ev + _set_least_value(dec_se["end_f_ht_r"].values[0], se_interval[1]) -
-                 dec_se["begin_f_ht_r"].values[0]])
-            
-            labels_indices = list(range(3, 6))
         elif se_name == "LongJump":
             # get decomposition of the current se
             dec_se = data_dec_se[
                 (data_dec_se["video"] == video) & (data_dec_se["begin_f_lj"] == se_interval[0]) & (
                         data_dec_se["end_f_lj"] == se_interval[1])].copy(deep=True)
 
-            begin_ev = _set_nn_value(dec_se["begin_f_run"].values[0] - se_interval[0])
-            if begin_ev <= 0:
-                dec_se["begin_f_run"] = se_interval[0]
-
+            begin_ev = dec_se["begin_f_run"].values[0] - se_interval[0]
             action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
-
             intervals_events.append([begin_ev, begin_ev + action_duration])
 
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev,
-                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
-                                     dec_se["begin_f"].values[0]])
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
 
-            labels_indices = list(range(0, 2))
-        elif se_name == "CleanAndJerk":
+            begin_ev = dec_se["begin_f_sit"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f_sit"].values[0] - dec_se["begin_f_sit"].values[0]])
+
+            labels_indices = [0, 1, 3]
+        elif se_name == "PoleVault":
             # get decomposition of the current se
             dec_se = data_dec_se[
-                (data_dec_se["video"] == video) & (data_dec_se["begin_f_cj"] == se_interval[0]) & (
-                        data_dec_se["end_f_cj"] == se_interval[1])].copy(deep=True)
-    
-            begin_ev = _set_nn_value(dec_se["begin_f_wlc"].values[0] - se_interval[0])
-            if begin_ev <= 0:
-                dec_se["begin_f_wlc"] = se_interval[0]
-    
-            action_duration = dec_se["end_f_wlc"].values[0] - dec_se["begin_f_wlc"].values[0]
-    
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_pv"] == se_interval[0]) & (
+                        data_dec_se["end_f_pv"] == se_interval[1])].copy(deep=True)
+
+            begin_ev = dec_se["begin_f_run"].values[0] - se_interval[0]
+            action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
             intervals_events.append([begin_ev, begin_ev + action_duration])
-    
+
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev,
-                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
-                                     dec_se["begin_f"].values[0]])
-    
-            labels_indices = list(range(6, 8))
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
+
+            begin_ev = dec_se["begin_f_jump"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f_jump"].values[0] - dec_se["begin_f_jump"].values[0]])
+
+            begin_ev = dec_se["begin_f_fall"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f_fall"].values[0] - dec_se["begin_f_fall"].values[0]])
+
+            labels_indices = [0, 4, 1, 2]
+            
+        elif se_name == "HammerThrow":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_ht"] == se_interval[0]) & (
+                        data_dec_se["end_f_ht"] == se_interval[1])].copy(deep=True)
+            
+            begin_ev = dec_se["begin_f_ht_wu"].values[0] - se_interval[0]
+            action_duration = dec_se["end_f_ht_wu"].values[0] - dec_se["begin_f_ht_wu"].values[0]
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+            
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
+            
+            begin_ev = dec_se["begin_f_ht_r"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f_ht_r"].values[0] -
+                 dec_se["begin_f_ht_r"].values[0]])
+            
+            labels_indices = list(range(5, 8))
         elif se_name == "ThrowDiscus":
             # get decomposition of the current se
             dec_se = data_dec_se[
                 (data_dec_se["video"] == video) & (data_dec_se["begin_f_td"] == se_interval[0]) & (
                         data_dec_se["end_f_td"] == se_interval[1])].copy(deep=True)
     
-            begin_ev = _set_nn_value(dec_se["begin_f_td_wu"].values[0] - se_interval[0])
-            if begin_ev <= 0:
-                dec_se["begin_f_td_wu"] = se_interval[0]
-    
+            begin_ev = dec_se["begin_f_td_wu"].values[0] - se_interval[0]
             action_duration = dec_se["end_f_td_wu"].values[0] - dec_se["begin_f_td_wu"].values[0]
-    
             intervals_events.append([begin_ev, begin_ev + action_duration])
     
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
-            intervals_events.append([begin_ev,
-                                     begin_ev + _set_least_value(dec_se["end_f"].values[0], se_interval[1]) -
-                                     dec_se["begin_f"].values[0]])
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
     
             labels_indices = list(range(8, 10))
+        elif se_name == "Shotput":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_sp"] == se_interval[0]) & (
+                        data_dec_se["end_f_sp"] == se_interval[1])].copy(deep=True)
+    
+            begin_ev = dec_se["begin_f_spb"].values[0] - se_interval[0]
+            action_duration = dec_se["end_f_spb"].values[0] - dec_se["begin_f_spb"].values[0]
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+    
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
+    
+            labels_indices = list(range(10, 12))
+        elif se_name == "JavelinThrow":
+            # get decomposition of the current se
+            dec_se = data_dec_se[
+                (data_dec_se["video"] == video) & (data_dec_se["begin_f_jt"] == se_interval[0]) & (
+                        data_dec_se["end_f_jt"] == se_interval[1])].copy(deep=True)
+    
+            begin_ev = dec_se["begin_f_run"].values[0] - se_interval[0]
+            action_duration = dec_se["end_f_run"].values[0] - dec_se["begin_f_run"].values[0]
+            intervals_events.append([begin_ev, begin_ev + action_duration])
+    
+            begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
+            intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
+    
+            labels_indices = [0, 11]
         
         rows = []
         columns = []
-        
+
         for i in labels_indices:
             begin, end = int(intervals_events[0][0]), int(intervals_events[0][1])
             rows += [i] * (end - begin + 1)
@@ -224,7 +220,7 @@ def get_labels(se_list, cfg_train):
 # get avg labels for neural baseline
 def get_avg_labels(se_list, cfg_train):
     avg_labels = {}
-    avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
+    avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     classes_names = cfg_train["classes_names"]
     
     for example in se_list:
@@ -233,12 +229,9 @@ def get_avg_labels(se_list, cfg_train):
         
         # get duration of s
         se_duration = (se_interval[1] - se_interval[0]) + 1
-
-        avg_actions_durations_f = get_avg_actions_durations_in_f(
-            se_name, duration, num_features, avg_actions_durations_s)
         
-        avg_values = list(avg_actions_durations_f.values())
-        tot_avg = sum(avg_values[1:])
+        avg_values = list(avg_actions_durations_f[se_name].values())
+        tot_avg = sum(avg_values)
         
         label_tensor = torch.zeros((se_duration, len(classes_names)))
         prev_num_frames = 0
@@ -247,7 +240,7 @@ def get_avg_labels(se_list, cfg_train):
             rows, columns = [], []
             inc_action = None
             dec_action = None
-            values = avg_values[1:]
+            values = avg_values
             
             # this may happen due to the round operation
             if prev_num_frames == (se_duration - 1):
@@ -271,28 +264,48 @@ def get_avg_labels(se_list, cfg_train):
                 
                 rows.extend(list(range(prev_num_frames, prev_num_frames + num_frames_to_label)))
                 
-                if se_name == "HammerThrow":
-                    if i == 0:
+                if se_name == "LongJump":
+                    if i == 2:
                         columns.extend([3] * num_frames_to_label)
-                    elif i == 1:
+                    else:
+                        columns.extend([i] * num_frames_to_label)
+                elif se_name == "PoleVault":
+                    if i == 1:
                         columns.extend([4] * num_frames_to_label)
                     elif i == 2:
-                        columns.extend([5] * num_frames_to_label)
-                elif se_name == "CleanAndJerk":
+                        columns.extend([1] * num_frames_to_label)
+                    elif i == 3:
+                        columns.extend([2] * num_frames_to_label)
+                    else:
+                        columns.extend([i] * num_frames_to_label)
+                elif se_name == "HammerThrow":
                     if i == 0:
-                        columns.extend([6] * num_frames_to_label)
+                        columns.extend([5] * num_frames_to_label)
                     elif i == 1:
+                        columns.extend([6] * num_frames_to_label)
+                    elif i == 2:
                         columns.extend([7] * num_frames_to_label)
                 elif se_name == "ThrowDiscus":
                     if i == 0:
                         columns.extend([8] * num_frames_to_label)
                     elif i == 1:
                         columns.extend([9] * num_frames_to_label)
+                elif se_name == "Shotput":
+                    if i == 0:
+                        columns.extend([10] * num_frames_to_label)
+                    elif i == 1:
+                        columns.extend([11] * num_frames_to_label)
+                elif se_name == "JavelinThrow":
+                    if i == 1:
+                        columns.extend([11] * num_frames_to_label)
+                    else:
+                        columns.extend([11] * num_frames_to_label)
                 else:
                     columns.extend([i] * num_frames_to_label)
                 
                 prev_num_frames += num_frames_to_label
-        
+        print(example)
+
         assert len(rows) == len(columns)
         label_tensor[rows, columns] = 1
         avg_labels["{}-{}-{}".format(video, se_name, se_interval)] = label_tensor

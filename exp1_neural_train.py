@@ -18,19 +18,24 @@ def get_se_prediction(outputs, f1_threshold, se_labels):
     num_se = len(se_labels)
     scores = torch.zeros((num_se))
     inverted_se = {value: key for key, value in se_labels.items()}
-  
+   
     for i in range(num_se):
         if i == 0:    # HighJump
-            scores[i] = torch.mean(outputs[:, :3][torch.where(outputs[:, :3] > f1_threshold)])
-        elif i == 1:  # HammerThrow
-            scores[i] = torch.mean(outputs[:, 3:6][torch.where(outputs[:, 3:6] > f1_threshold)])
-        elif i == 2:  # LongJump
-            scores[i] = torch.mean(outputs[:, :2][torch.where(outputs[:, :2] > f1_threshold)])
-        elif i == 3:  # CleanAndJerk
-            scores[i] = torch.mean(outputs[:, 6:8][torch.where(outputs[:, 6:8] > f1_threshold)])
+            combined_outputs = outputs[:, :3]
+        elif i == 1:  # LongJump
+            combined_outputs = torch.cat((outputs[:, :2], outputs[:, 3].unsqueeze(-1)), 1)
+        elif i == 2:  # PoleVault
+            combined_outputs = torch.cat((outputs[:, 0].unsqueeze(-1), outputs[:, 4].unsqueeze(-1), outputs[:, 1:3]),1)
+        elif i == 3:  # HammerThrow
+            combined_outputs = outputs[:, 5:8]
         elif i == 4:  # ThrowDiscus
-            scores[i] = torch.mean(outputs[:, 8:10][torch.where(outputs[:, 8:10] > f1_threshold)])
- 
+            combined_outputs = outputs[:, 8:10]
+        elif i == 5:  # Shotput
+            combined_outputs = outputs[:, 10:12]
+        elif i == 6:  # JavelinThrow
+            combined_outputs = torch.cat((outputs[:, 0].unsqueeze(-1), outputs[:, 11].unsqueeze(-1)), 1)
+            
+        scores[i] = torch.mean(combined_outputs[torch.where(combined_outputs > f1_threshold)])
     scores = torch.nan_to_num(scores)
     
     return inverted_se[int(torch.argmax(scores))]
@@ -105,7 +110,7 @@ def evaluate(
             labels_clip = labels_clip.cpu().data.numpy()
             avg_labels_clip = avg_labels_clip.cpu().data.numpy()
             
-            assert len(outputs) == len(labels_clip)
+            assert len(outputs) == len(avg_labels_clip)
             
             epochs_predictions["epoch"].append(epoch)
             epochs_predictions["video"].append(video)
@@ -123,7 +128,7 @@ def evaluate(
             se_gt[:, se_labels[gt_se_name]] = 1
             
             actions_predictions.extend(np.concatenate((outputs > f1_threshold, se_predictions), axis=1))
-            actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
+            actions_ground_truth.extend(np.concatenate((avg_labels_clip, se_gt), axis=1))
     
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
@@ -250,8 +255,13 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     num_training_examples = len(se_train)
     
     optimizer.zero_grad()
-    train_indices = np.arange(len(se_train))
+
     rng = random.Random(cfg_train["seed"])
+    fmap_score = evaluate(
+        -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips,
+        f1_threshold,
+        structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+    )
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
@@ -342,7 +352,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, bceWLL, num_clips, f1_threshold,
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test, nn_model, bceWLL, num_clips, f1_threshold,
         structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 

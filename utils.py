@@ -36,22 +36,6 @@ def convert_to_float_tensor(input):
     return input
 
 
-def get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_durations_s):
-    fps = num_features / duration
-    avg_actions_durations_f = copy.deepcopy(avg_actions_durations_s[se_name])
-
-    for action in avg_actions_durations_f.keys():
-        avg_action_f = 0
-        for i in range(num_features):
-            if i / fps >= 0. and i / fps <= avg_actions_durations_f[action]:
-                avg_action_f += 1
-            else:
-                break
-        avg_actions_durations_f[action] = avg_action_f
-    
-    return avg_actions_durations_f
-
-
 def _get_textual_desc_from_label(se_name, label, classes_names):
     # create textual representation for the ground thruth
     textual_label = {}
