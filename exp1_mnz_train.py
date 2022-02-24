@@ -12,13 +12,13 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from tensorboardX import SummaryWriter
 
 from dataset import get_labels
-from utils import convert_to_float_tensor, get_avg_actions_durations_in_f, get_textual_label_from_tensor
+from utils import convert_to_float_tensor, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
 
 
 def evaluate(
         epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, num_clips, mnz_models, se_labels,
-        avg_actions_durations_s, use_cuda, classes_names, writer, brief_summary, epochs_predictions
+        avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
     nn_model.eval()
     se_names = list(se_labels.keys())
@@ -84,18 +84,26 @@ def evaluate(
             tot_time_example = 0
             sols = []
             
+            # mnz_ground_truth
+            mnz_gt = torch.zeros(outputs.shape)
+            mnz_gt_sol = None
+            
             for se_name, mnz_model in mnz_models.items():
-                avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features,
-                                                                         avg_actions_durations_s)
                 mnz_problem, _ = build_problem_exp1(se_name, mnz_model, nn.Sigmoid()(outputs_transpose),
-                                                    avg_actions_durations_f)
+                                                    avg_actions_durations_f[se_name])
                 start_time = time.time()
                 
                 sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+                
                 end_time = time.time()
                 tot_time_example += end_time - start_time
                 sols.append(sol)
-            
+
+                if se_name == gt_se_name:
+                    fill_mnz_pred_exp1(mnz_gt, sol, gt_se_name)
+                    mnz_gt_sol = sol[0]
+                    
+
             tot_time_mnz += tot_time_example
             
             raw_outputs = nn.Sigmoid()(outputs)
@@ -104,8 +112,13 @@ def evaluate(
             best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs)
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
             
+            if mode != "Test":
+                labels_clip = mnz_gt
+                labels_clip_textual = mnz_gt_sol
+                
             example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
                                 labels_clip[new_begin_se:new_end_se + 1]) / labels_clip.shape[1]
+            
             tot_loss += example_loss
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
                 num_mnz_models, tot_time_example, tot_time_example / num_mnz_models))
@@ -204,7 +217,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
     classes_names_abb = cfg_train["classes_names_abb"]
-    avg_actions_durations_s = cfg_train["avg_actions_durations_s"]
+    avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     structured_events = cfg_train["structured_events"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
@@ -265,13 +278,12 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     # )
     # breakpoint()
     # fmap_score = evaluate(
-    #     epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips,
+    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips,
     #     mnz_models,
-    #     structured_events, avg_actions_durations_s, use_cuda, classes_names, writer_val, brief_summary,
+    #     structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary,
     #     epochs_predictions["val"]
     # )
     optimizer.zero_grad()
-    train_indices = np.arange(len(se_train))
     rng = random.Random(cfg_train["seed"])
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
@@ -309,9 +321,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             # minizinc part
             tot_time_example = 0
             
-            avg_actions_durations_f = get_avg_actions_durations_in_f(se_name, duration, num_features, avg_actions_durations_s)
-
-            mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], nn.Sigmoid()(outputs_transpose), avg_actions_durations_f)
+            mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], nn.Sigmoid()(outputs_transpose), avg_actions_durations_f[se_name])
             
             start_time = time.time()
             sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
@@ -362,7 +372,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         
         fmap_score = evaluate(
             epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips, mnz_models,
-            structured_events, avg_actions_durations_s, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
@@ -389,7 +399,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
 
     fmap_score = evaluate(
         best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, bceWLL, num_clips, mnz_models,
-        structured_events, avg_actions_durations_s, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:

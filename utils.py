@@ -41,23 +41,22 @@ def _get_textual_desc_from_label(se_name, label, classes_names):
     textual_label = {}
     begin, end, begin_name, end_name = -1, -1, "", ""
 
-    from_class = 0
-    to_class = 3
-    
-    if se_name == "HammerThrow":
-        from_class = 3
-        to_class = 6
+    if se_name == "HighJump":
+        classes = list(range(0, 3))
     elif se_name == "LongJump":
-        from_class = 0
-        to_class = 2
-    elif se_name == "CleanAndJerk":
-        from_class = 6
-        to_class = 8
+        classes = [0, 1, 3]
+    elif se_name == "PoleVault":
+        classes = [0, 4, 1, 2]
+    elif se_name == "HammerThrow":
+        classes = [5, 6, 7]
     elif se_name == "ThrowDiscus":
-        from_class = 8
-        to_class = 10
+        classes = [8, 9]
+    elif se_name == "Shotput":
+        classes = [10, 11]
+    elif se_name == "JavelinThrow":
+        classes = [0, 11]
     
-    for c in range(from_class, to_class):
+    for c in classes:
         action_indices = torch.where(label[:, c] == 1)[0].numpy()
     
         if not list(action_indices):

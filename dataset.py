@@ -73,7 +73,6 @@ def get_labels(se_list, cfg_train):
     dec_labels = {}
     
     for example in se_list:
-        print(example)
         video, se_name, se_interval = example[0], example[1], example[4]
         
         if se_name not in data_dec:
@@ -99,7 +98,7 @@ def get_labels(se_list, cfg_train):
             begin_ev = dec_se["begin_f_fall"].values[0] - se_interval[0]
             intervals_events.append([begin_ev, begin_ev + dec_se["end_f_fall"].values[0] - dec_se["begin_f_fall"].values[0]])
             
-            labels_indices = list(range(0, 3))
+            labels_indices = [0, 1, 2]
         elif se_name == "LongJump":
             # get decomposition of the current se
             dec_se = data_dec_se[
@@ -155,7 +154,7 @@ def get_labels(se_list, cfg_train):
             intervals_events.append([begin_ev, begin_ev + dec_se["end_f_ht_r"].values[0] -
                  dec_se["begin_f_ht_r"].values[0]])
             
-            labels_indices = list(range(5, 8))
+            labels_indices = [5, 6, 7]
         elif se_name == "ThrowDiscus":
             # get decomposition of the current se
             dec_se = data_dec_se[
@@ -169,7 +168,7 @@ def get_labels(se_list, cfg_train):
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
             intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
     
-            labels_indices = list(range(8, 10))
+            labels_indices = [8, 9]
         elif se_name == "Shotput":
             # get decomposition of the current se
             dec_se = data_dec_se[
@@ -183,7 +182,7 @@ def get_labels(se_list, cfg_train):
             begin_ev = dec_se["begin_f"].values[0] - se_interval[0]
             intervals_events.append([begin_ev, begin_ev + dec_se["end_f"].values[0] - dec_se["begin_f"].values[0]])
     
-            labels_indices = list(range(10, 12))
+            labels_indices = [10, 11]
         elif se_name == "JavelinThrow":
             # get decomposition of the current se
             dec_se = data_dec_se[
