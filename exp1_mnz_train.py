@@ -20,6 +20,7 @@ def evaluate(
         epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, num_clips, mnz_models, se_labels,
         avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
+
     nn_model.eval()
     se_names = list(se_labels.keys())
     num_se = len(se_list)
@@ -99,11 +100,10 @@ def evaluate(
                 tot_time_example += end_time - start_time
                 sols.append(sol)
 
-                if se_name == gt_se_name:
+                if se_name == gt_se_name and mode != "Test":
                     fill_mnz_pred_exp1(mnz_gt, sol, gt_se_name)
                     mnz_gt_sol = sol[0]
                     
-
             tot_time_mnz += tot_time_example
             
             raw_outputs = nn.Sigmoid()(outputs)
@@ -271,7 +271,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     max_fmap_score = 0.
     
     num_training_examples = len(se_train)
-    
+
     # fmap_score = evaluate(
     #     5, "Train", se_train, features_train, labels_train, labels_train_textual, nn_model, bceWLL, num_clips,
     #     mnz_models, structured_events, avg_actions_durations_s, use_cuda, classes_names, None, None, None

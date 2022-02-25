@@ -22,7 +22,7 @@ var bSP .. eSP: eT;
 % all ends have to be greater than or equal to their corresponding begin
 constraint eSPB >= bSPB /\ eSPB >= bSPB;
 
-constraint bSPB == bSP /\ eSPB < (bT-1) /\ eT == eSP;
+constraint bSPB == bSP /\ eSPB == (bT-1) /\ eT == eSP;
 
 % component of the cost function
 var int: cost_comp_spb_pos = - sum (t in bSPB..eSPB) (actions_predictions[1,t]);
