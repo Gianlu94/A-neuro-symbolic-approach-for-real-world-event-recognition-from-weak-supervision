@@ -362,3 +362,84 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     brief_summary.close()
     print(fmap_score)
     print(best_model_ep)
+
+
+def evaluate_test_set_on_proportion_rule(se_test, cfg_train, cfg_dataset):
+    
+    mode = "Test"
+    # signature
+    exp_info = "/{}-{}/".format(cfg_train["run_id"], cfg_train["exp"])
+    logs_dir = cfg_dataset.tf_logs_dir + exp_info
+    os.makedirs(logs_dir, exist_ok=True)
+    brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
+    
+    test_predictions = {"video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "ground_truth_avg": []}
+
+    num_examples = len(se_test)
+    
+    labels_test = get_labels(se_test, cfg_train)
+    avg_labels_test = get_avg_labels(se_test, cfg_train)
+
+    actions_predictions = []
+    actions_ground_truth = []
+
+    print("\nStarting evaluation")
+    start_time_ev = time.time()
+    
+    for i, example in enumerate(se_test):
+        video, gt_se_name, duration, num_features, se_interval, _ = example
+    
+        print(
+            "\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_examples),
+            end="")
+        
+        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
+        
+        labels_clip = labels_test[example_id].cpu().data.numpy()
+        avg_labels_clip = avg_labels_test[example_id].cpu().data.numpy()
+        
+        test_predictions["video"].append(video)
+        test_predictions["gt_se_names"].append(gt_se_name)
+        test_predictions["se_interval"].append(se_interval)
+        test_predictions["ground_truth"].append(labels_clip)
+        test_predictions["ground_truth_avg"].append(avg_labels_clip)
+
+        actions_predictions.extend(avg_labels_clip)
+        actions_ground_truth.extend(labels_clip)
+
+    actions_ground_truth = np.array(actions_ground_truth)
+    actions_predictions = np.array(actions_predictions)
+
+    # compute metrics
+    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
+
+    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
+
+    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
+
+    end_time_ev = time.time()
+
+    metrics_to_print = """
+                \nTIME: {:.2f}
+                {} -- Precision per class: {}
+                {} -- Recall per class: {}
+                {} -- F1-Score per class: {}
+                {} -- Average Precision: {}
+                {} -- F1-Score: {:.4f}, mAP: {:.4f}
+            """.format(
+        end_time_ev - start_time_ev,
+        mode, actions_precision,
+        mode, actions_recall,
+        mode, str(actions_f1_scores),
+        mode, str(actions_avg_precision_score),
+        mode, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
+    )
+
+    print(metrics_to_print, flush=True)
+    brief_summary.write(metrics_to_print)
+
+    with open("{}/test_predictions.pickle".format(cfg_dataset.tf_logs_dir + exp_info), "wb") as tp_file:
+        pickle.dump(test_predictions, tp_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+    brief_summary.close()
+

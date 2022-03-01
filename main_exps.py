@@ -8,8 +8,8 @@ import h5py as h5
 
 from mlad.configuration import build_config
 from mlad.model import build_model
-from exp1_mnz_train import train_exp1_mnz
-from exp1_neural_train import train_exp1_neural
+from exp1_mnz import train_exp1_mnz
+from exp1_baselines import train_exp1_neural, evaluate_test_set_on_proportion_rule
 
 from dataset import load_data, get_validation_set
 
@@ -33,6 +33,7 @@ if __name__ == '__main__':
     with open(path_to_conf, "r") as jf:
         cfg_train = json.load(jf)
     
+    exp = cfg_train["exp"]
     path_to_filtered_data = cfg_train["path_to_filtered_data"]
     model_version = cfg_train["model_version"]
     num_clips = cfg_train["num_clips"]
@@ -74,7 +75,7 @@ if __name__ == '__main__':
         se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"], seed
     )
 
-    if "path_to_mnz_models" in cfg_train:
+    if exp == "mnz":
         path_to_mnz = cfg_train["path_to_mnz_models"]
         # minizinc models for each structured event (se)
         mnz_files_names = os.listdir(path_to_mnz)
@@ -87,10 +88,14 @@ if __name__ == '__main__':
         train_exp1_mnz(
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
         )
-    else:
+    elif exp == "neural_baseline":
         train_exp1_neural(
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset
         )
+    elif exp == "proportion_rule_baseline":
+        evaluate_test_set_on_proportion_rule(se_test, cfg_train, cfg_dataset)
+    else:
+        print("ERROR: Experiment {} not found".format(exp))
     
     
     
