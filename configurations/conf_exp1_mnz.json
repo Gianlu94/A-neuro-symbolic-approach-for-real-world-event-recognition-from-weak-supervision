@@ -1,4 +1,5 @@
 {
+  "exp": "1-mnz",
   "seed": 0,
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
@@ -38,7 +39,7 @@
     "PVPP",
     "HT_WU", "HT_S", "HT_R",
     "TD_WU", "TD_R",
-    "SP", "T"
+    "SPB", "T"
   ],
   "avg_actions_durations_f": {
     "HighJump": {

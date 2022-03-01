@@ -1,5 +1,5 @@
 {
-  "exp": "proportion_rule_baseline",
+  "exp": "1-proportion_rule_baseline",
   "seed": 0,
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
