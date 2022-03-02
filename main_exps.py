@@ -10,7 +10,7 @@ from mlad.configuration import build_config
 from mlad.model import build_model
 from exp1_mnz import train_exp1_mnz
 from exp2_mnz import train_exp2_mnz
-from exp1_baselines import train_exp1_neural, evaluate_test_set_on_proportion_rule
+from exp1_baselines import train_exp1_neural, evaluate_test_set_with_proportion_rule_on_aa
 
 from dataset import load_data, get_validation_set
 
@@ -100,7 +100,7 @@ if __name__ == '__main__':
             se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset
         )
     elif exp_type == "proportion_rule_baseline":
-        evaluate_test_set_on_proportion_rule(se_test, cfg_train, cfg_dataset)
+        evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset)
     else:
         print("ERROR: Experiment {} not found".format(exp_type))
     

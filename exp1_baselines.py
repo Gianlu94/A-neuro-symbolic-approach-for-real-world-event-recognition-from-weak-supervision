@@ -364,7 +364,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     print(best_model_ep)
 
 
-def evaluate_test_set_on_proportion_rule(se_test, cfg_train, cfg_dataset):
+def evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset):
     
     mode = "Test"
     # signature
