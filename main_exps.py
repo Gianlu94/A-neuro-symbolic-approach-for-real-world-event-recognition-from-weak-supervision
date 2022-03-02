@@ -10,7 +10,9 @@ from mlad.configuration import build_config
 from mlad.model import build_model
 from exp1_mnz import train_exp1_mnz
 from exp2_mnz import train_exp2_mnz
-from exp1_baselines import train_exp1_neural, evaluate_test_set_with_proportion_rule_on_aa
+from exp1_baselines import (
+    train_exp1_neural, evaluate_test_set_with_neural_on_aa, evaluate_test_set_with_proportion_rule_on_aa
+)
 
 from dataset import load_data, get_validation_set
 
@@ -96,9 +98,13 @@ if __name__ == '__main__':
                 se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
             )
     elif exp_type == "neural_baseline":
-        train_exp1_neural(
-            se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset
-        )
+        if "evaluate_only_aa" in cfg_train:
+            if cfg_train["evaluate_only_aa"]:
+                evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_train, cfg_dataset)
+        else:
+            train_exp1_neural(
+                se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset
+            )
     elif exp_type == "proportion_rule_baseline":
         evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset)
     else:

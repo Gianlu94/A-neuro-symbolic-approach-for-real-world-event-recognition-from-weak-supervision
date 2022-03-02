@@ -364,11 +364,132 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     print(best_model_ep)
 
 
+def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_train, cfg_dataset):
+    exp_info = "/{}-{}_aa/".format(cfg_train["run_id"], cfg_train["exp"])
+    logs_dir = cfg_dataset.tf_logs_dir + exp_info
+    os.makedirs(logs_dir, exist_ok=True)
+    brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
+    
+    nn_model.eval()
+    num_examples = len(se_test)
+    labels_test = get_labels(se_test, cfg_train)
+    
+    se_labels = cfg_train["structured_events"]
+
+    num_clips = cfg_train["num_clips"]
+    use_cuda = cfg_train["use_cuda"]
+    f1_threshold = cfg_train["f1_threshold"]
+
+    test_predictions = {
+        "video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "raw_outputs":[], "predictions": []}
+    actions_predictions = []
+    actions_ground_truth = []
+
+    bceWLL = nn.BCEWithLogitsLoss(reduction="mean")
+    tot_loss = 0.
+    print("\nStarting evaluation")
+    start_time_ev = time.time()
+    
+    for i, example in enumerate(se_test):
+        
+        video, gt_se_name, duration, num_features, se_interval, _ = example
+        
+        print(
+            "\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_examples),
+            end="")
+        
+        new_begin_se = 0
+        new_end_se = se_interval[1] - se_interval[0]
+        
+        # get features for the current video
+        features_video = np.array(features_test[video])
+        features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
+        
+        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
+        
+        # get clip and its labels
+        features_clip = features_video[se_interval[0]:se_interval[1] + 1]
+        
+        labels_clip = labels_test[example_id]
+        
+        # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
+        with torch.no_grad():
+            if num_clips > 0:
+                if len(features_clip) < num_clips:
+                    # padding
+                    features_to_append = torch.zeros(num_clips - len(features_clip) % num_clips, features_clip.shape[1])
+                    features_clip = torch.cat((features_clip, features_to_append), 0)
+                assert len(features_clip) > 0
+            else:
+                features_clip = torch.unsqueeze(features_clip, 0)
+                labels_clip = torch.unsqueeze(labels_clip, 0)
+            
+            if use_cuda:
+                features_clip = features_clip.cuda()
+                labels_clip = labels_clip.cuda()
+            
+            # get the output from the network
+            out = nn_model(features_clip)
+            outputs = out['final_output']
+            outputs = outputs.squeeze(0)
+            outputs = outputs[new_begin_se:new_end_se + 1]
+            
+            example_loss = bceWLL(outputs, labels_clip)  # labels_clip)
+            tot_loss += example_loss
+            
+            outputs = nn.Sigmoid()(outputs)
+            
+            outputs = outputs.data.numpy()
+            labels_clip = labels_clip.cpu().data.numpy()
+            
+            assert len(outputs) == len(labels_clip)
+            
+            test_predictions["video"].append(video)
+            test_predictions["gt_se_names"].append(gt_se_name)
+            test_predictions["se_interval"].append(se_interval)
+            test_predictions["ground_truth"].append(labels_clip)
+            test_predictions["raw_outputs"].append(outputs)
+            test_predictions["predictions"].append(outputs > f1_threshold)
+            
+            actions_predictions.extend(outputs > f1_threshold)
+            actions_ground_truth.extend(labels_clip)
+    
+    actions_ground_truth = np.array(actions_ground_truth)
+    actions_predictions = np.array(actions_predictions)
+    
+    # compute metrics
+    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
+    
+    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
+    
+    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
+    
+    end_time_ev = time.time()
+
+    metrics_to_print = """
+                    \nTIME: {:.2f}
+                    Test -- Precision per class: {}
+                    Test -- Recall per class: {}
+                    Test -- F1-Score per class: {}
+                    Test -- Average Precision: {}
+                    Test -- F1-Score: {:.4f}, mAP: {:.4f}
+                """.format(
+        end_time_ev - start_time_ev,
+        actions_precision,
+        actions_recall,
+        str(actions_f1_scores),
+        str(actions_avg_precision_score),
+        np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
+    )
+    
+    print(metrics_to_print, flush=True)
+    brief_summary.write(metrics_to_print)
+    
+    
 def evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset):
     
-    mode = "Test"
     # signature
-    exp_info = "/{}-{}/".format(cfg_train["run_id"], cfg_train["exp"])
+    exp_info = "/{}-{}_aa/".format(cfg_train["run_id"], cfg_train["exp"])
     logs_dir = cfg_dataset.tf_logs_dir + exp_info
     os.makedirs(logs_dir, exist_ok=True)
     brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
@@ -421,18 +542,18 @@ def evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset
 
     metrics_to_print = """
                 \nTIME: {:.2f}
-                {} -- Precision per class: {}
-                {} -- Recall per class: {}
-                {} -- F1-Score per class: {}
-                {} -- Average Precision: {}
-                {} -- F1-Score: {:.4f}, mAP: {:.4f}
+                Test -- Precision per class: {}
+                Test -- Recall per class: {}
+                Test -- F1-Score per class: {}
+                Test -- Average Precision: {}
+                Test -- F1-Score: {:.4f}, mAP: {:.4f}
             """.format(
         end_time_ev - start_time_ev,
-        mode, actions_precision,
-        mode, actions_recall,
-        mode, str(actions_f1_scores),
-        mode, str(actions_avg_precision_score),
-        mode, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
+        actions_precision,
+        actions_recall,
+        str(actions_f1_scores),
+        str(actions_avg_precision_score),
+        np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
     )
 
     print(metrics_to_print, flush=True)
