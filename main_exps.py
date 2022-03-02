@@ -8,7 +8,7 @@ import h5py as h5
 
 from mlad.configuration import build_config
 from mlad.model import build_model
-from exp1_mnz import train_exp1_mnz
+from exp1_mnz import train_exp1_mnz, evaluate_test_set_with_mnz_on_aa
 from exp2_mnz import train_exp2_mnz
 from exp1_baselines import (
     train_exp1_neural, evaluate_test_set_with_neural_on_aa, evaluate_test_set_with_proportion_rule_on_aa
@@ -90,9 +90,14 @@ if __name__ == '__main__':
                 mnz_models[se_name] = mnz_file.read()
 
         if exp_num == 1:
-            train_exp1_mnz(
-                se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
-            )
+            if "evaluate_only_aa" in cfg_train:
+                # evaluate only atomic actions on test set
+                if cfg_train["evaluate_only_aa"]:
+                    evaluate_test_set_with_mnz_on_aa(nn_model, se_test, features_test, cfg_train, cfg_dataset, mnz_models)
+            else:
+                train_exp1_mnz(
+                    se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
+                )
         elif exp_num == 2:
             train_exp2_mnz(
                 se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
