@@ -115,9 +115,8 @@ def evaluate(
             if mode != "Test":
                 labels_clip = mnz_gt
                 labels_clip_textual = mnz_gt_sol
-                
-            example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
-                                labels_clip[new_begin_se:new_end_se + 1]) / labels_clip.shape[1]
+
+            example_loss = loss(outputs, labels_clip)
             
             tot_loss += example_loss
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
@@ -335,7 +334,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             fill_mnz_pred_exp1(mnz_pred, sol, se_name)
             
             print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
-
+            
             example_loss = bceWLL(outputs, mnz_pred)
             batch_loss += example_loss
             
