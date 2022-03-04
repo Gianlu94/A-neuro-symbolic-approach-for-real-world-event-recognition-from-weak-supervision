@@ -25,34 +25,36 @@ def get_se_prediction(outputs, avg_labels_clip, loss):
     return se_labels[int(torch.argmin(scores))]
 
 
-def set_outputs_for_metrics_computation(pred_se_name, outputs, f1_threshold):
-    new_outputs = outputs
-    new_outputs = new_outputs > f1_threshold
+def set_outputs_for_metrics_computation(pred_se_name, outputs):
+    tmp_outputs = outputs
+    new_outputs = torch.zeros_like(tmp_outputs)
     
     if pred_se_name == "HighJump":
-        new_outputs[:, 3:] = 0
+        tmp_outputs[:, 3:] = 0
     elif pred_se_name == "LongJump":
-        new_outputs[:, 2] = 0
-        new_outputs[:, 4:] = 0
+        tmp_outputs[:, 2] = 0
+        tmp_outputs[:, 4:] = 0
     elif pred_se_name == "PoleVault":
-        new_outputs[:, 3] = 0
-        new_outputs[:, 5:] = 0
+        tmp_outputs[:, 3] = 0
+        tmp_outputs[:, 5:] = 0
     elif pred_se_name == "HammerThrow":
-        new_outputs[:, :5] = 0
-        new_outputs[:, 8:] = 0
+        tmp_outputs[:, :5] = 0
+        tmp_outputs[:, 8:] = 0
     elif pred_se_name == "ThrowDiscus":
-        new_outputs[:, :8] = 0
-        new_outputs[:, 10:] = 0
+        tmp_outputs[:, :8] = 0
+        tmp_outputs[:, 10:] = 0
     elif pred_se_name == "Shotput":
-        new_outputs[:, :10] = 0
+        tmp_outputs[:, :10] = 0
     elif pred_se_name == "JavelinThrow":
-        new_outputs[:, 1:11] = 0
+        tmp_outputs[:, 1:11] = 0
+
+    new_outputs[:, torch.argmax(tmp_outputs, 1)] = 1
 
     return new_outputs
 
     
 def evaluate(
-        epoch, mode, se_list, features, labels, avg_labels, nn_model, loss, num_clips, f1_threshold, se_labels,
+        epoch, mode, se_list, features, labels, avg_labels, nn_model, loss, ll_activation, num_clips, se_labels,
         use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
     nn_model.eval()
@@ -112,12 +114,12 @@ def evaluate(
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
 
-            predicted_se_name = get_se_prediction(outputs, avg_labels_clip, loss)
+            outputs_act = ll_activation(outputs)
+            predicted_se_name = get_se_prediction(outputs_act, avg_labels_clip, loss)
             avg_labels_clip_predicted_se = avg_labels_clip[predicted_se_name]
             example_loss = loss(outputs, avg_labels_clip_predicted_se)#labels_clip)
             tot_loss += example_loss
             
-            outputs = nn.Sigmoid()(outputs)
             outputs = outputs.data.numpy()
             labels_clip = labels_clip.cpu().data.numpy()
             avg_labels_clip_true_se = avg_labels_clip[gt_se_name].cpu().data.numpy()
@@ -133,7 +135,7 @@ def evaluate(
             epochs_predictions["ground_truth"].append(labels_clip)
             epochs_predictions["ground_truth_avg"].append(avg_labels_clip_predicted_se)
             epochs_predictions["raw_outputs"].append(outputs)
-            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs, f1_threshold)
+            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
             epochs_predictions["predictions"].append(new_outputs)
             
             se_predictions = np.zeros((new_outputs.shape[0], num_se))
@@ -204,21 +206,29 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     use_cuda = cfg_train["use_cuda"]
     num_epochs = cfg_train["num_epochs"]
     save_epochs = cfg_train["save_epochs"]
+    # last layer activation
+    ll_activation_name = cfg_train["ll_activation"]
+    ll_activation = None
+    if ll_activation_name == "softmax":
+        ll_activation = nn.Softmax(1)
+    # loss function
+    loss_name = cfg_train["loss"]
+    loss = None
+    if loss_name == "CE":
+        loss = nn.CrossEntropyLoss(reduction="mean")
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
     weight_decay = cfg_train["weight_decay"]
     optimizer = cfg_train["optimizer"]
-    f1_threshold = cfg_train["f1_threshold"]
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
     structured_events = cfg_train["structured_events"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
-    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}_f1th{}/".format(run_id,
-                                                                     num_epochs, batch_size, learning_rate,
-                                                                     weight_decay, optimizer, f1_threshold)
+    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id, num_epochs, batch_size, learning_rate,
+                                                                weight_decay, optimizer)
     saved_models_dir += train_info
     os.makedirs(saved_models_dir, exist_ok=True)
 
@@ -245,8 +255,6 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
     brief_summary = open("{}/brief_summary.txt".format(cfg_dataset.tf_logs_dir + train_info), "w")
     best_model_ep = 0
-
-    bceWLL = nn.BCEWithLogitsLoss(reduction="mean")
     
     if optimizer == "Adam":
         print("Using ADAM optimizer")
@@ -275,8 +283,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
     rng = random.Random(cfg_train["seed"])
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips,
-    #     f1_threshold,
+    #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation, num_clips,
     #     structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
     # )
     for epoch in range(1, num_epochs + 1):
@@ -306,7 +313,8 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             
             outputs = out['final_output'][0]
 
-            example_loss = bceWLL(outputs, avg_labels_clip_true_se) #labels_train[id_label])
+            example_loss = loss(outputs, avg_labels_clip_true_se) #labels_train[id_label])
+
             batch_loss += example_loss
             
             example_loss.backward()
@@ -322,10 +330,10 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
                 optimizer.step()
                 optimizer.zero_grad()
 
-            outputs = nn.Sigmoid()(outputs)
+            outputs_act = ll_activation(outputs)
             labels_clip = labels_train[id_label]
 
-            predicted_se_name = get_se_prediction(outputs, avg_labels_train[id_label], bceWLL)
+            predicted_se_name = get_se_prediction(outputs_act, avg_labels_train[id_label], loss)
             avg_labels_clip_predicted_se = avg_labels_train[id_label][predicted_se_name]
             outputs = outputs.cpu().detach().numpy()
             epochs_predictions["train"]["epoch"].append(epoch)
@@ -336,7 +344,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
             epochs_predictions["train"]["ground_truth_avg"].append(avg_labels_clip_predicted_se.cpu().detach().numpy())
             epochs_predictions["train"]["raw_outputs"].append(outputs)
-            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs, f1_threshold)
+            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
             epochs_predictions["train"]["predictions"].append(new_outputs)
             
         end_time_epoch = time.time()
@@ -345,8 +353,9 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips, f1_threshold,
-            structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            epoch, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation,
+            num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+            epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
@@ -372,7 +381,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, bceWLL, num_clips, f1_threshold,
+        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, loss, ll_activation, num_clips,
         structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
@@ -396,6 +405,15 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
     
     se_labels = cfg_train["structured_events"]
 
+    # last layer activation
+    ll_activation_name = cfg_train["ll_activation"]
+    if ll_activation_name == "softmax":
+        ll_activation = nn.Softmax(1)
+    # loss function
+    loss_name = cfg_train["loss"]
+    if loss_name == "CE":
+        loss = nn.CrossEntropyLoss(reduction="mean")
+        
     num_clips = cfg_train["num_clips"]
     use_cuda = cfg_train["use_cuda"]
     f1_threshold = cfg_train["f1_threshold"]
@@ -405,7 +423,6 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
     actions_predictions = []
     actions_ground_truth = []
 
-    bceWLL = nn.BCEWithLogitsLoss(reduction="mean")
     tot_loss = 0.
     print("\nStarting evaluation")
     start_time_ev = time.time()
@@ -454,10 +471,10 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
             
-            example_loss = bceWLL(outputs, labels_clip)  # labels_clip)
+            example_loss = loss(outputs, labels_clip)  # labels_clip)
             tot_loss += example_loss
             
-            outputs = nn.Sigmoid()(outputs)
+            outputs = ll_activation(outputs)
             
             outputs = outputs.data.numpy()
             labels_clip = labels_clip.cpu().data.numpy()
