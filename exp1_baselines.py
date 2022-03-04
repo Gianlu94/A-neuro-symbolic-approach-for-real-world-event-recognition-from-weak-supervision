@@ -14,33 +14,43 @@ from dataset import get_labels, get_avg_labels
 from utils import convert_to_float_tensor
 
 
-def get_se_prediction(outputs, f1_threshold, se_labels):
+def get_se_prediction(outputs, avg_labels_clip, loss):
+    se_labels = list(avg_labels_clip.keys())
     num_se = len(se_labels)
     scores = torch.zeros((num_se))
-    inverted_se = {value: key for key, value in se_labels.items()}
-   
-    for i in range(num_se):
-        if i == 0:    # HighJump
-            combined_outputs = outputs[:, :3]
-        elif i == 1:  # LongJump
-            combined_outputs = torch.cat((outputs[:, :2], outputs[:, 3].unsqueeze(-1)), 1)
-        elif i == 2:  # PoleVault
-            combined_outputs = torch.cat((outputs[:, 0].unsqueeze(-1), outputs[:, 4].unsqueeze(-1), outputs[:, 1:3]),1)
-        elif i == 3:  # HammerThrow
-            combined_outputs = outputs[:, 5:8]
-        elif i == 4:  # ThrowDiscus
-            combined_outputs = outputs[:, 8:10]
-        elif i == 5:  # Shotput
-            combined_outputs = outputs[:, 10:12]
-        elif i == 6:  # JavelinThrow
-            combined_outputs = torch.cat((outputs[:, 0].unsqueeze(-1), outputs[:, 11].unsqueeze(-1)), 1)
-            
-        scores[i] = torch.mean(combined_outputs[torch.where(combined_outputs > f1_threshold)])
-    scores = torch.nan_to_num(scores)
+
+    for idx, current_se in enumerate(se_labels):
+        scores[idx] = loss(outputs, avg_labels_clip[current_se])
     
-    return inverted_se[int(torch.argmax(scores))]
+    return se_labels[int(torch.argmin(scores))]
 
 
+def set_outputs_for_metrics_computation(pred_se_name, outputs, f1_threshold):
+    new_outputs = outputs
+    new_outputs = new_outputs > f1_threshold
+    
+    if pred_se_name == "HighJump":
+        new_outputs[:, 3:] = 0
+    elif pred_se_name == "LongJump":
+        new_outputs[:, 2] = 0
+        new_outputs[:, 4:] = 0
+    elif pred_se_name == "PoleVault":
+        new_outputs[:, 3] = 0
+        new_outputs[:, 5:] = 0
+    elif pred_se_name == "HammerThrow":
+        new_outputs[:, :5] = 0
+        new_outputs[:, 8:] = 0
+    elif pred_se_name == "ThrowDiscus":
+        new_outputs[:, :8] = 0
+        new_outputs[:, 10:] = 0
+    elif pred_se_name == "Shotput":
+        new_outputs[:, :10] = 0
+    elif pred_se_name == "JavelinThrow":
+        new_outputs[:, 1:11] = 0
+
+    return new_outputs
+
+    
 def evaluate(
         epoch, mode, se_list, features, labels, avg_labels, nn_model, loss, num_clips, f1_threshold, se_labels,
         use_cuda, classes_names, writer, brief_summary, epochs_predictions
@@ -78,6 +88,8 @@ def evaluate(
         
         labels_clip = labels[example_id]
         avg_labels_clip = avg_labels[example_id]
+        #avg_labels_clip_true_se = avg_labels_clip[gt_se_name]
+        
         # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
         with torch.no_grad():
             if num_clips > 0:
@@ -100,17 +112,18 @@ def evaluate(
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
 
-            example_loss = loss(outputs, avg_labels_clip)#labels_clip)
+            predicted_se_name = get_se_prediction(outputs, avg_labels_clip, loss)
+            avg_labels_clip_predicted_se = avg_labels_clip[predicted_se_name]
+            example_loss = loss(outputs, avg_labels_clip_predicted_se)#labels_clip)
             tot_loss += example_loss
             
             outputs = nn.Sigmoid()(outputs)
-            predicted_se_name = get_se_prediction(outputs, f1_threshold, se_labels)
-            
             outputs = outputs.data.numpy()
             labels_clip = labels_clip.cpu().data.numpy()
-            avg_labels_clip = avg_labels_clip.cpu().data.numpy()
+            avg_labels_clip_true_se = avg_labels_clip[gt_se_name].cpu().data.numpy()
+            avg_labels_clip_predicted_se = avg_labels_clip_predicted_se.cpu().data.numpy()
             
-            assert len(outputs) == len(avg_labels_clip)
+            assert len(outputs) == len(avg_labels_clip_predicted_se)
             
             epochs_predictions["epoch"].append(epoch)
             epochs_predictions["video"].append(video)
@@ -118,17 +131,21 @@ def evaluate(
             epochs_predictions["pred_se_names"].append(predicted_se_name)
             epochs_predictions["se_interval"].append(se_interval)
             epochs_predictions["ground_truth"].append(labels_clip)
-            epochs_predictions["ground_truth_avg"].append(avg_labels_clip)
+            epochs_predictions["ground_truth_avg"].append(avg_labels_clip_predicted_se)
             epochs_predictions["raw_outputs"].append(outputs)
-            epochs_predictions["predictions"].append(outputs > f1_threshold)
+            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs, f1_threshold)
+            epochs_predictions["predictions"].append(new_outputs)
             
-            se_predictions = np.zeros((outputs.shape[0], num_se))
+            se_predictions = np.zeros((new_outputs.shape[0], num_se))
             se_predictions[:, se_labels[predicted_se_name]] = 1
-            se_gt = np.zeros((outputs.shape[0], num_se))
+            se_gt = np.zeros((new_outputs.shape[0], num_se))
             se_gt[:, se_labels[gt_se_name]] = 1
             
-            actions_predictions.extend(np.concatenate((outputs > f1_threshold, se_predictions), axis=1))
-            actions_ground_truth.extend(np.concatenate((avg_labels_clip, se_gt), axis=1))
+            actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
+            if mode == "Test":
+                actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
+            else:
+                actions_ground_truth.extend(np.concatenate((avg_labels_clip_true_se, se_gt), axis=1))
     
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
@@ -246,7 +263,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     
     labels_val = get_labels(se_val, cfg_train)
     avg_labels_val = get_avg_labels(se_val, cfg_train)
-    
+ 
     labels_test = get_labels(se_test, cfg_train)
     avg_labels_test = get_avg_labels(se_test, cfg_train)
     
@@ -257,11 +274,11 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     optimizer.zero_grad()
 
     rng = random.Random(cfg_train["seed"])
-    fmap_score = evaluate(
-        -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips,
-        f1_threshold,
-        structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
-    )
+    # fmap_score = evaluate(
+    #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, bceWLL, num_clips,
+    #     f1_threshold,
+    #     structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+    # )
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
@@ -282,14 +299,14 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             # get clip and its labels
             features_clip = features_video[se_interval[0]:se_interval[1] + 1]
             id_label = "{}-{}-{}".format(video, se_name, se_interval)
-            avg_labels_clip = avg_labels_train[id_label]
+            avg_labels_clip_true_se = avg_labels_train[id_label][se_name]
             
             # get the output from the network
             out = nn_model(features_clip.unsqueeze(0))
             
             outputs = out['final_output'][0]
 
-            example_loss = bceWLL(outputs, avg_labels_clip) #labels_train[id_label])
+            example_loss = bceWLL(outputs, avg_labels_clip_true_se) #labels_train[id_label])
             batch_loss += example_loss
             
             example_loss.backward()
@@ -307,7 +324,9 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
             outputs = nn.Sigmoid()(outputs)
             labels_clip = labels_train[id_label]
-            predicted_se_name = get_se_prediction(outputs, f1_threshold, structured_events)
+
+            predicted_se_name = get_se_prediction(outputs, avg_labels_train[id_label], bceWLL)
+            avg_labels_clip_predicted_se = avg_labels_train[id_label][predicted_se_name]
             outputs = outputs.cpu().detach().numpy()
             epochs_predictions["train"]["epoch"].append(epoch)
             epochs_predictions["train"]["video"].append(video)
@@ -315,9 +334,10 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             epochs_predictions["train"]["pred_se_names"].append(predicted_se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
-            epochs_predictions["train"]["ground_truth_avg"].append(avg_labels_clip.cpu().detach().numpy())
+            epochs_predictions["train"]["ground_truth_avg"].append(avg_labels_clip_predicted_se.cpu().detach().numpy())
             epochs_predictions["train"]["raw_outputs"].append(outputs)
-            epochs_predictions["train"]["predictions"].append(outputs > f1_threshold)
+            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs, f1_threshold)
+            epochs_predictions["train"]["predictions"].append(new_outputs)
             
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
@@ -352,7 +372,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test, nn_model, bceWLL, num_clips, f1_threshold,
+        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, bceWLL, num_clips, f1_threshold,
         structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
@@ -449,9 +469,10 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
             test_predictions["se_interval"].append(se_interval)
             test_predictions["ground_truth"].append(labels_clip)
             test_predictions["raw_outputs"].append(outputs)
-            test_predictions["predictions"].append(outputs > f1_threshold)
+            new_outputs = set_outputs_for_metrics_computation(gt_se_name, outputs, f1_threshold)
+            test_predictions["predictions"].append(new_outputs)
             
-            actions_predictions.extend(outputs > f1_threshold)
+            actions_predictions.extend(new_outputs)
             actions_ground_truth.extend(labels_clip)
     
     actions_ground_truth = np.array(actions_ground_truth)

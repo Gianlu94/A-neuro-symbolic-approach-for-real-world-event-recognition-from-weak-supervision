@@ -221,6 +221,7 @@ def get_avg_labels(se_list, cfg_train):
     avg_labels = {}
     avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     classes_names = cfg_train["classes_names"]
+    structured_events = cfg_train["structured_events"]
     
     for example in se_list:
         video, se_name, duration, num_features, se_interval = \
@@ -229,85 +230,88 @@ def get_avg_labels(se_list, cfg_train):
         # get duration of s
         se_duration = (se_interval[1] - se_interval[0]) + 1
         
-        avg_values = list(avg_actions_durations_f[se_name].values())
-        tot_avg = sum(avg_values)
-        
-        label_tensor = torch.zeros((se_duration, len(classes_names)))
-        prev_num_frames = 0
-
-        while prev_num_frames != se_duration:
-            rows, columns = [], []
-            inc_action = None
-            dec_action = None
-            values = avg_values
+        for current_se in structured_events:
+            avg_values = list(avg_actions_durations_f[current_se].values())
+            tot_avg = sum(avg_values)
             
-            # this may happen due to the round operation
-            if prev_num_frames == (se_duration - 1):
-                # randomly increment one of the actions
-                prev_num_frames = 0
-                inc_action = random.randint(0, len(values) - 1)
-            elif prev_num_frames > se_duration:
-                # randomly decrement one of the actions
-                prev_num_frames = 0
-                dec_action = random.randint(0, len(values) - 1)
-            
-            for i, avg_value in enumerate(values):
+            label_tensor = torch.zeros((se_duration, len(classes_names)))
+            prev_num_frames = 0
+    
+            while prev_num_frames != se_duration:
+                rows, columns = [], []
+                inc_action = None
+                dec_action = None
+                values = avg_values
                 
-                num_frames_to_label = round(se_duration * avg_value / tot_avg)
+                # this may happen due to the round operation
+                if prev_num_frames == (se_duration - 1):
+                    # randomly increment one of the actions
+                    prev_num_frames = 0
+                    inc_action = random.randint(0, len(values) - 1)
+                elif prev_num_frames > se_duration:
+                    # randomly decrement one of the actions
+                    prev_num_frames = 0
+                    dec_action = random.randint(0, len(values) - 1)
                 
-                # increment/decrement action i of one frame (if needed)
-                if inc_action is not None and inc_action == i:
-                    num_frames_to_label += 1
-                if dec_action is not None and dec_action == i:
-                    num_frames_to_label -= 1
-                
-                rows.extend(list(range(prev_num_frames, prev_num_frames + num_frames_to_label)))
-                
-                if se_name == "LongJump":
-                    if i == 2:
-                        columns.extend([3] * num_frames_to_label)
+                for i, avg_value in enumerate(values):
+                    
+                    num_frames_to_label = round(se_duration * avg_value / tot_avg)
+                    
+                    # increment/decrement action i of one frame (if needed)
+                    if inc_action is not None and inc_action == i:
+                        num_frames_to_label += 1
+                    if dec_action is not None and dec_action == i:
+                        num_frames_to_label -= 1
+                    
+                    rows.extend(list(range(prev_num_frames, prev_num_frames + num_frames_to_label)))
+                    
+                    if current_se == "LongJump":
+                        if i == 2:
+                            columns.extend([3] * num_frames_to_label)
+                        else:
+                            columns.extend([i] * num_frames_to_label)
+                    elif current_se == "PoleVault":
+                        if i == 1:
+                            columns.extend([4] * num_frames_to_label)
+                        elif i == 2:
+                            columns.extend([1] * num_frames_to_label)
+                        elif i == 3:
+                            columns.extend([2] * num_frames_to_label)
+                        else:
+                            columns.extend([i] * num_frames_to_label)
+                    elif current_se == "HammerThrow":
+                        if i == 0:
+                            columns.extend([5] * num_frames_to_label)
+                        elif i == 1:
+                            columns.extend([6] * num_frames_to_label)
+                        elif i == 2:
+                            columns.extend([7] * num_frames_to_label)
+                    elif current_se == "ThrowDiscus":
+                        if i == 0:
+                            columns.extend([8] * num_frames_to_label)
+                        elif i == 1:
+                            columns.extend([9] * num_frames_to_label)
+                    elif current_se == "Shotput":
+                        if i == 0:
+                            columns.extend([10] * num_frames_to_label)
+                        elif i == 1:
+                            columns.extend([11] * num_frames_to_label)
+                    elif current_se == "JavelinThrow":
+                        if i == 1:
+                            columns.extend([11] * num_frames_to_label)
+                        else:
+                            columns.extend([11] * num_frames_to_label)
                     else:
                         columns.extend([i] * num_frames_to_label)
-                elif se_name == "PoleVault":
-                    if i == 1:
-                        columns.extend([4] * num_frames_to_label)
-                    elif i == 2:
-                        columns.extend([1] * num_frames_to_label)
-                    elif i == 3:
-                        columns.extend([2] * num_frames_to_label)
-                    else:
-                        columns.extend([i] * num_frames_to_label)
-                elif se_name == "HammerThrow":
-                    if i == 0:
-                        columns.extend([5] * num_frames_to_label)
-                    elif i == 1:
-                        columns.extend([6] * num_frames_to_label)
-                    elif i == 2:
-                        columns.extend([7] * num_frames_to_label)
-                elif se_name == "ThrowDiscus":
-                    if i == 0:
-                        columns.extend([8] * num_frames_to_label)
-                    elif i == 1:
-                        columns.extend([9] * num_frames_to_label)
-                elif se_name == "Shotput":
-                    if i == 0:
-                        columns.extend([10] * num_frames_to_label)
-                    elif i == 1:
-                        columns.extend([11] * num_frames_to_label)
-                elif se_name == "JavelinThrow":
-                    if i == 1:
-                        columns.extend([11] * num_frames_to_label)
-                    else:
-                        columns.extend([11] * num_frames_to_label)
-                else:
-                    columns.extend([i] * num_frames_to_label)
-                
-                prev_num_frames += num_frames_to_label
-        print(example)
-
-        assert len(rows) == len(columns)
-        label_tensor[rows, columns] = 1
-        avg_labels["{}-{}-{}".format(video, se_name, se_interval)] = label_tensor
+                    
+                    prev_num_frames += num_frames_to_label
+    
+            assert len(rows) == len(columns)
+            label_tensor[rows, columns] = 1
+            clip_key = "{}-{}-{}".format(video, se_name, se_interval)
+            if clip_key not in avg_labels:
+                avg_labels[clip_key] = {}
+            avg_labels[clip_key][current_se] = label_tensor
     return avg_labels
 
 
