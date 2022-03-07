@@ -134,7 +134,7 @@ def evaluate(
             epochs_predictions["se_interval"].append(se_interval)
             epochs_predictions["ground_truth"].append(labels_clip)
             epochs_predictions["ground_truth_avg"].append(avg_labels_clip_predicted_se)
-            epochs_predictions["raw_outputs"].append(outputs)
+            epochs_predictions["outputs_act"].append(outputs_act.cpu().detach().numpy())
             new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
             epochs_predictions["predictions"].append(new_outputs)
             
@@ -236,17 +236,17 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         "train":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "outputs_act": [], "predictions": []
             },
         "val":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "outputs_act": [], "predictions": []
             },
         "test":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "ground_truth_avg": [], "raw_outputs": [], "predictions": []
+                "ground_truth": [], "ground_truth_avg": [], "outputs_act": [], "predictions": []
             },
     }
 
@@ -343,7 +343,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
             epochs_predictions["train"]["ground_truth_avg"].append(avg_labels_clip_predicted_se.cpu().detach().numpy())
-            epochs_predictions["train"]["raw_outputs"].append(outputs)
+            epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
             new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
             epochs_predictions["train"]["predictions"].append(new_outputs)
             
@@ -394,7 +394,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
 
 def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg_train, cfg_dataset):
-    exp_info = "/{}-{}_aa/".format(cfg_train["run_id"], cfg_train["exp"])
+    exp_info = "/{}-{}/".format(cfg_train["run_id"], cfg_train["exp"])
     logs_dir = cfg_dataset.tf_logs_dir + exp_info
     os.makedirs(logs_dir, exist_ok=True)
     brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
@@ -423,7 +423,7 @@ def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg
     use_cuda = cfg_train["use_cuda"]
     
     test_predictions = {
-        "video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "raw_outputs": [], "predictions": []}
+        "video": [], "se_interval": [], "gt_se_names": [], "pred_se_names": [], "ground_truth": [], "outputs_act": [], "predictions": []}
     actions_predictions = []
     actions_ground_truth = []
     
@@ -488,10 +488,11 @@ def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg
             assert len(outputs) == len(labels_clip)
             
             test_predictions["video"].append(video)
-            test_predictions["gt_se_names"].append(gt_se_name)
             test_predictions["se_interval"].append(se_interval)
+            test_predictions["gt_se_names"].append(gt_se_name)
+            test_predictions["pred_se_names"].append(predicted_se_name)
             test_predictions["ground_truth"].append(labels_clip)
-            test_predictions["raw_outputs"].append(outputs)
+            test_predictions["outputs_act"].append(outputs_act.data.cpu().detach().numpy())
             
             new_outputs = avg_labels_test[example_id][predicted_se_name].data.numpy()
             test_predictions["predictions"].append(new_outputs)
@@ -535,4 +536,7 @@ def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg
     print(metrics_to_print, flush=True)
     brief_summary.write(metrics_to_print)
     brief_summary.close()
+    
+    with open("{}/test_predictions.pickle".format(logs_dir), "wb") as tp_file:
+        pickle.dump(test_predictions, tp_file, protocol=pickle.HIGHEST_PROTOCOL)
 
