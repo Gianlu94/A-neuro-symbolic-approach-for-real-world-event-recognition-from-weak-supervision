@@ -1,12 +1,18 @@
 {
-  "exp": "1-proportion_rule_baseline",
+  "exp": "1-mnz",
   "seed": 0,
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
-  "path_to_pretrain_model": "./results/saved_models/0-exp1_neural/ne_20_bs_5_lr_0.001_wd_1e-06_opt_Adam/model_6.pth",
+  "path_to_mnz_models": "./minizinc/models/exp1/",
   "val_ratio": 0.1,
-  "ll_activation": "softmax",
-  "loss": "CE",
+  "ll_activation": "sigmoid",
+  "loss": "BCE",
+  "num_epochs": 20,
+  "save_epochs": 1,
+  "batch_size": 5,
+  "learning_rate": 1e-3,
+  "weight_decay": 1e-6,
+  "optimizer": "Adam",
   "model_version": "v1",
   "num_mlad_layers": 5,
   "num_clips": 128,
@@ -29,7 +35,15 @@
     "DiscusWindUp", "DiscusRelease",
     "ShotPutBend", "Throw"
   ],
-  "avg_actions_durations_f" : {
+  "classes_names_abb": [
+    "R", "J", "F",
+    "S",
+    "PVPP",
+    "HT_WU", "HT_S", "HT_R",
+    "TD_WU", "TD_R",
+    "SPB", "T"
+  ],
+  "avg_actions_durations_f": {
     "HighJump": {
       "avgR": 7,
       "avgJ": 2,
@@ -40,28 +54,28 @@
       "avgJ": 6,
       "avgS": 11
     },
-    "PoleVault":{
+    "PoleVault": {
       "avgR": 9,
-      "avgPVPP": 2 ,
+      "avgPVPP": 2,
       "avgJ": 7,
       "avgF": 4
     },
     "HammerThrow": {
-        "avgHT_WU": 8,
-        "avgHT_S": 8,
-        "avgHT_R": 3
+      "avgHT_WU": 8,
+      "avgHT_S": 8,
+      "avgHT_R": 3
     },
     "ThrowDiscus": {
-        "avgTD_WU": 4,
-        "avgTD_R": 3
+      "avgTD_WU": 4,
+      "avgTD_R": 3
     },
     "Shotput": {
-        "avgSPB": 6,
-        "avgT": 4
+      "avgSPB": 6,
+      "avgT": 4
     },
     "JavelinThrow": {
-        "avgR": 14,
-        "avgT": 2
+      "avgR": 14,
+      "avgT": 2
     }
   }
 }
