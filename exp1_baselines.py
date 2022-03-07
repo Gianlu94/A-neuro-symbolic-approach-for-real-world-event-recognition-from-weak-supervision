@@ -393,36 +393,40 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     print(best_model_ep)
 
 
-def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_train, cfg_dataset):
+def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg_train, cfg_dataset):
     exp_info = "/{}-{}_aa/".format(cfg_train["run_id"], cfg_train["exp"])
     logs_dir = cfg_dataset.tf_logs_dir + exp_info
     os.makedirs(logs_dir, exist_ok=True)
     brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
     
     nn_model.eval()
+    structured_events = cfg_train["structured_events"]
     num_examples = len(se_test)
-    labels_test = get_labels(se_test, cfg_train)
+    se_names = list(structured_events.keys())
+    num_se = len(se_names)
     
-    se_labels = cfg_train["structured_events"]
-
+    labels_test = get_labels(se_test, cfg_train)
+    avg_labels_test = get_avg_labels(se_test, cfg_train)
+    
     # last layer activation
     ll_activation_name = cfg_train["ll_activation"]
+    ll_activation = None
     if ll_activation_name == "softmax":
         ll_activation = nn.Softmax(1)
     # loss function
     loss_name = cfg_train["loss"]
+    loss = None
     if loss_name == "CE":
         loss = nn.CrossEntropyLoss(reduction="mean")
-        
+    
     num_clips = cfg_train["num_clips"]
     use_cuda = cfg_train["use_cuda"]
-    f1_threshold = cfg_train["f1_threshold"]
-
+    
     test_predictions = {
-        "video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "raw_outputs":[], "predictions": []}
+        "video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "raw_outputs": [], "predictions": []}
     actions_predictions = []
     actions_ground_truth = []
-
+    
     tot_loss = 0.
     print("\nStarting evaluation")
     start_time_ev = time.time()
@@ -474,7 +478,9 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
             example_loss = loss(outputs, labels_clip)  # labels_clip)
             tot_loss += example_loss
             
-            outputs = ll_activation(outputs)
+            outputs_act = ll_activation(outputs)
+            
+            predicted_se_name = get_se_prediction(outputs_act, avg_labels_test[example_id], loss)
             
             outputs = outputs.data.numpy()
             labels_clip = labels_clip.cpu().data.numpy()
@@ -486,12 +492,18 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
             test_predictions["se_interval"].append(se_interval)
             test_predictions["ground_truth"].append(labels_clip)
             test_predictions["raw_outputs"].append(outputs)
-            new_outputs = set_outputs_for_metrics_computation(gt_se_name, outputs, f1_threshold)
-            test_predictions["predictions"].append(new_outputs)
             
-            actions_predictions.extend(new_outputs)
-            actions_ground_truth.extend(labels_clip)
-    
+            new_outputs = avg_labels_test[example_id][predicted_se_name].data.numpy()
+            test_predictions["predictions"].append(new_outputs)
+
+            se_predictions = np.zeros((new_outputs.shape[0], num_se))
+            se_predictions[:, structured_events[predicted_se_name]] = 1
+            se_gt = np.zeros((new_outputs.shape[0], num_se))
+            se_gt[:, structured_events[gt_se_name]] = 1
+
+            actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
+            actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
+   
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
     
@@ -503,15 +515,15 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
     actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
     
     end_time_ev = time.time()
-
+    
     metrics_to_print = """
-                    \nTIME: {:.2f}
-                    Test -- Precision per class: {}
-                    Test -- Recall per class: {}
-                    Test -- F1-Score per class: {}
-                    Test -- Average Precision: {}
-                    Test -- F1-Score: {:.4f}, mAP: {:.4f}
-                """.format(
+                        \nTIME: {:.2f}
+                        Test -- Precision per class: {}
+                        Test -- Recall per class: {}
+                        Test -- F1-Score per class: {}
+                        Test -- Average Precision: {}
+                        Test -- F1-Score: {:.4f}, mAP: {:.4f}
+                    """.format(
         end_time_ev - start_time_ev,
         actions_precision,
         actions_recall,
@@ -522,83 +534,5 @@ def evaluate_test_set_with_neural_on_aa(nn_model, se_test, features_test, cfg_tr
     
     print(metrics_to_print, flush=True)
     brief_summary.write(metrics_to_print)
-    
-    
-def evaluate_test_set_with_proportion_rule_on_aa(se_test, cfg_train, cfg_dataset):
-    
-    # signature
-    exp_info = "/{}-{}_aa/".format(cfg_train["run_id"], cfg_train["exp"])
-    logs_dir = cfg_dataset.tf_logs_dir + exp_info
-    os.makedirs(logs_dir, exist_ok=True)
-    brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
-    
-    test_predictions = {"video": [], "gt_se_names": [], "se_interval": [], "ground_truth": [], "ground_truth_avg": []}
-
-    num_examples = len(se_test)
-    
-    labels_test = get_labels(se_test, cfg_train)
-    avg_labels_test = get_avg_labels(se_test, cfg_train)
-
-    actions_predictions = []
-    actions_ground_truth = []
-
-    print("\nStarting evaluation")
-    start_time_ev = time.time()
-    
-    for i, example in enumerate(se_test):
-        video, gt_se_name, duration, num_features, se_interval, _ = example
-    
-        print(
-            "\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_examples),
-            end="")
-        
-        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
-        
-        labels_clip = labels_test[example_id].cpu().data.numpy()
-        avg_labels_clip = avg_labels_test[example_id].cpu().data.numpy()
-        
-        test_predictions["video"].append(video)
-        test_predictions["gt_se_names"].append(gt_se_name)
-        test_predictions["se_interval"].append(se_interval)
-        test_predictions["ground_truth"].append(labels_clip)
-        test_predictions["ground_truth_avg"].append(avg_labels_clip)
-
-        actions_predictions.extend(avg_labels_clip)
-        actions_ground_truth.extend(labels_clip)
-
-    actions_ground_truth = np.array(actions_ground_truth)
-    actions_predictions = np.array(actions_predictions)
-
-    # compute metrics
-    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
-
-    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
-
-    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
-
-    end_time_ev = time.time()
-
-    metrics_to_print = """
-                \nTIME: {:.2f}
-                Test -- Precision per class: {}
-                Test -- Recall per class: {}
-                Test -- F1-Score per class: {}
-                Test -- Average Precision: {}
-                Test -- F1-Score: {:.4f}, mAP: {:.4f}
-            """.format(
-        end_time_ev - start_time_ev,
-        actions_precision,
-        actions_recall,
-        str(actions_f1_scores),
-        str(actions_avg_precision_score),
-        np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
-    )
-
-    print(metrics_to_print, flush=True)
-    brief_summary.write(metrics_to_print)
-
-    with open("{}/test_predictions.pickle".format(cfg_dataset.tf_logs_dir + exp_info), "wb") as tp_file:
-        pickle.dump(test_predictions, tp_file, protocol=pickle.HIGHEST_PROTOCOL)
-
     brief_summary.close()
 
