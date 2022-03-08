@@ -32,7 +32,7 @@ def set_third_layer_action(second_layer_action):
 
 
 def evaluate(
-        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, num_clips, mnz_models, se_labels,
+        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, num_clips, mnz_models, se_labels,
         avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
 
@@ -96,7 +96,9 @@ def evaluate(
             outputs = out['final_output']
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
+            
             # mnz
+            # classes x times
             outputs_transpose = outputs.transpose(0, 1)
             
             # minizinc part
@@ -108,8 +110,8 @@ def evaluate(
             mnz_gt_sol = None
             
             for se_name, mnz_model in mnz_models.items():
-                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, nn.Sigmoid()(outputs_transpose),
-                                                    avg_actions_durations_f[se_name])
+                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, outputs_transpose, avg_actions_durations_f[se_name])
+                
                 start_time = time.time()
                 
                 sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
@@ -123,11 +125,11 @@ def evaluate(
                     mnz_gt_sol = sol[0]
                     
             tot_time_mnz += tot_time_example
-            
-            raw_outputs = nn.Sigmoid()(outputs)
+
+            outputs_act = ll_activation(outputs)
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs)
+            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", outputs_act)
             third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
 
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
@@ -136,8 +138,7 @@ def evaluate(
                 labels_clip = mnz_gt
                 labels_clip_textual = mnz_gt_sol
                 
-            example_loss = loss((mnz_pred * outputs)[new_begin_se:new_end_se + 1],
-                                labels_clip[new_begin_se:new_end_se + 1]) / labels_clip.shape[1]
+            example_loss = loss(outputs, labels_clip)
             
             tot_loss += example_loss
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
@@ -162,7 +163,7 @@ def evaluate(
                 epochs_predictions["pred_se_names"].append(third_layer_action_pred + "-" + predicted_se_name)
                 epochs_predictions["se_interval"].append(se_interval)
                 epochs_predictions["ground_truth"].append(labels_clip)
-                epochs_predictions["raw_outputs"].append(raw_outputs.cpu().data.numpy())
+                epochs_predictions["outputs_act"].append(outputs_act.cpu().data.numpy())
                 epochs_predictions["predictions"].append(mnz_pred)
             
             se_predictions = np.zeros((outputs.shape[0], num_events))
@@ -231,6 +232,23 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     run_id = cfg_train["run_id"]
     use_cuda = cfg_train["use_cuda"]
     num_epochs = cfg_train["num_epochs"]
+
+    # last layer activation
+    ll_activation_name = cfg_train["ll_activation"]
+    ll_activation = None
+    if ll_activation_name == "softmax":
+        ll_activation = nn.Softmax(0)
+    elif ll_activation_name == "sigmoid":
+        ll_activation = nn.Sigmoid()
+
+    # loss function
+    loss_name = cfg_train["loss"]
+    loss = None
+    if loss_name == "CE":
+        loss = nn.CrossEntropyLoss(reduction="mean")
+    elif loss_name == "BCE":
+        loss = nn.BCEWithLogitsLoss(reduction="mean")
+        
     save_epochs = cfg_train["save_epochs"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
@@ -245,9 +263,9 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
-    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id,
-                                                                     num_epochs, batch_size, learning_rate,
-                                                                     weight_decay, optimizer)
+    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(
+        run_id, num_epochs, batch_size, learning_rate, weight_decay, optimizer)
+    
     saved_models_dir += train_info
     os.makedirs(saved_models_dir, exist_ok=True)
 
@@ -255,17 +273,17 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         "train":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "raw_outputs": [], "predictions": []
+                "outputs_act": [], "predictions": []
             },
         "val":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "raw_outputs": [], "predictions": []
+                "outputs_act": [], "predictions": []
             },
         "test":
             {
                 "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
-                "raw_outputs": [], "predictions": []
+                "outputs_act": [], "predictions": []
             }
     }
 
@@ -274,8 +292,6 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
     brief_summary = open("{}/brief_summary.txt".format(cfg_dataset.tf_logs_dir + train_info), "w")
     best_model_ep = 0
-
-    bceWLL = nn.BCEWithLogitsLoss()
     
     if optimizer == "Adam":
         print("Using ADAM optimizer")
@@ -340,19 +356,18 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             outputs = out['final_output'][0]
 
             # mnz
-            outputs_transpose = outputs.transpose(0, 1)
+            outputs_transpose = ll_activation(outputs.transpose(0, 1))
 
             # minizinc part
             tot_time_example = 0
             
             sols = []
             third_layer_action_gt, models_to_check = set_third_layer_action(se_name)
-            third_layer_action_pred = ""
             
             for model_to_check in models_to_check:
 
                 mnz_problem, _ = build_problem_exp1(
-                    model_to_check, mnz_models[model_to_check], nn.Sigmoid()(outputs_transpose),
+                    model_to_check, mnz_models[model_to_check], outputs_transpose,
                     avg_actions_durations_f[model_to_check]
                 )
                 
@@ -365,15 +380,15 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
 
             tot_time_mnz += tot_time_example
 
-            raw_outputs = nn.Sigmoid()(outputs)
+            outputs_act = ll_activation(outputs)
             
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", raw_outputs)
+            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", outputs_act)
             third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
 
-            example_loss = bceWLL(outputs, mnz_pred)
+            example_loss = loss(outputs, mnz_pred)
             batch_loss += example_loss
             
             example_loss.backward()
@@ -400,7 +415,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             epochs_predictions["train"]["pred_se_names"].append(third_layer_action_pred + "-" + predicted_se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
-            epochs_predictions["train"]["raw_outputs"].append(nn.Sigmoid()(outputs).cpu().detach().numpy())
+            epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
             epochs_predictions["train"]["predictions"].append(mnz_pred.cpu().detach().numpy())
 
         end_time_epoch = time.time()
@@ -410,7 +425,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips, mnz_models,
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
             structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
         
@@ -437,7 +452,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, bceWLL, num_clips, mnz_models,
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
         structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
