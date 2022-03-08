@@ -5,6 +5,8 @@
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
   "path_to_mnz_models": "./minizinc/models/exp1/",
   "val_ratio": 0.1,
+  "ll_activation": "sigmoid",
+  "loss": "BCE",
   "num_epochs": 20,
   "save_epochs": 1,
   "batch_size": 5,
