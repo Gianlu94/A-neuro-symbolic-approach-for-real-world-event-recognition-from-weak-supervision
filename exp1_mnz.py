@@ -17,8 +17,9 @@ from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_be
 
 
 def evaluate(
-        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, num_clips, mnz_models, se_labels,
-        avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary, epochs_predictions
+        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, selection_criteria,
+        num_clips, mnz_models, se_labels, avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary,
+        epochs_predictions
 ):
 
     nn_model.eval()
@@ -110,7 +111,11 @@ def evaluate(
             
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", outputs_act)
+            if selection_criteria == "max_avg":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs_act)
+            elif selection_criteria == "min_loss":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
+                
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
             
             if mode != "Test":
@@ -226,6 +231,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     elif loss_name == "BCE":
         loss = nn.BCEWithLogitsLoss(reduction="mean")
         
+    selection_criteria = cfg_train["selection_criteria"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
@@ -293,9 +299,8 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     # )
     # breakpoint()
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation, num_clips,
-    #     mnz_models,
-    #     structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary,
+    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
+    #     selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary,
     #     epochs_predictions["val"]
     # )
     optimizer.zero_grad()
@@ -386,8 +391,8 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
-            structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
+            selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
@@ -413,8 +418,8 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
-        structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation,
+        selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:

@@ -32,8 +32,9 @@ def set_third_layer_action(second_layer_action):
 
 
 def evaluate(
-        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, num_clips, mnz_models, se_labels,
-        avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary, epochs_predictions
+        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, selection_criteria,
+        num_clips, mnz_models, se_labels, avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary,
+        epochs_predictions
 ):
 
     nn_model.eval()
@@ -129,7 +130,10 @@ def evaluate(
             outputs_act = ll_activation(outputs)
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", outputs_act)
+            if selection_criteria == "max_avg":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs_act)
+            elif selection_criteria == "min_loss":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
             third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
 
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
@@ -248,7 +252,8 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         loss = nn.CrossEntropyLoss(reduction="mean")
     elif loss_name == "BCE":
         loss = nn.BCEWithLogitsLoss(reduction="mean")
-        
+
+    selection_criteria = cfg_train["selection_criteria"]
     save_epochs = cfg_train["save_epochs"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
@@ -384,7 +389,11 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            best_sol, predicted_se_name, _ = get_best_sol(sols, "max_avg", outputs_act)
+            if selection_criteria == "max_avg":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs_act)
+            elif selection_criteria == "min_loss":
+                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
+            
             third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
 
@@ -425,8 +434,8 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
-            structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
+            selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
@@ -452,8 +461,8 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation, num_clips, mnz_models,
-        structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation,
+        selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:

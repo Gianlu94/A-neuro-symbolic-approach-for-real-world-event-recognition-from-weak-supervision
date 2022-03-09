@@ -3,7 +3,7 @@ from pymzn import Status
 import torch
 
 
-def get_best_sol(sols, criteria, output):
+def get_best_sol(sols, criteria, output, loss=None):
     scores = torch.zeros(len(sols))
     actions = []
     se_intervals = []
@@ -35,40 +35,53 @@ def get_best_sol(sols, criteria, output):
             se_begin, se_end = mnz_pred[0], mnz_pred[-1]
             se_intervals.append([se_begin, se_end])
             
+            class_of_interest = None
+            rows = [list(range(mnz_pred[i], mnz_pred[i+1]+1)) for i in range(0, len(mnz_pred), 2)]
+            columns = []
+            if action == "HighJump": # [0, 1, 2]
+                class_of_interest = [0, 1, 2]
+            elif action == "LongJump": # [0, 1, 3]
+                class_of_interest = [0, 1, 3]
+            elif action == "PoleVault": # [0, 4, 1, 2]
+                class_of_interest = [0, 4, 1, 2]
+            elif action == "HammerThrow": # [5, 6, 7]
+                class_of_interest = [5, 6, 7]
+            elif action == "ThrowDiscus": # [8, 9]
+                class_of_interest = [8, 9]
+            elif action == "Shotput": # [10, 11]
+                class_of_interest = [10, 11]
+            elif action == "JavelinThrow": # [0, 11]
+                class_of_interest = [0, 11]
+
+            assert class_of_interest is not None
+            for idx, c in enumerate(class_of_interest):
+                columns.extend([c] * len(rows[idx]))
+
+            rows = get_flatted_list(rows)
+            #columns = get_flatted_list(columns)
+            assert len(rows) == len(columns)
+            
             if criteria == "max_avg":
-                class_of_interest = None
-                rows = [list(range(mnz_pred[i], mnz_pred[i+1]+1)) for i in range(0, len(mnz_pred), 2)]
-                columns = []
-                if action == "HighJump": # [0, 1, 2]
-                    class_of_interest = [0, 1, 2]
-                elif action == "LongJump": # [0, 1, 3]
-                    class_of_interest = [0, 1, 3]
-                elif action == "PoleVault": # [0, 4, 1, 2]
-                    class_of_interest = [0, 4, 1, 2]
-                elif action == "HammerThrow": # [5, 6, 7]
-                    class_of_interest = [5, 6, 7]
-                elif action == "ThrowDiscus": # [8, 9]
-                    class_of_interest = [8, 9]
-                elif action == "Shotput": # [10, 11]
-                    class_of_interest = [10, 11]
-                elif action == "JavelinThrow": # [0, 11]
-                    class_of_interest = [0, 11]
-    
-                assert class_of_interest is not None
-                for idx, c in enumerate(class_of_interest):
-                    columns.extend([c] * len(rows[idx]))
-    
-                rows = get_flatted_list(rows)
-                #columns = get_flatted_list(columns)
-                assert len(rows) == len(columns)
                 scores[idx_sol] = torch.mean(output[rows, columns])
+            elif criteria == "min_loss":
+                labels_from_mnz_pred = torch.zeros_like(output)
+                labels_from_mnz_pred[rows, columns] = 1
+                scores[idx_sol] = loss(output, labels_from_mnz_pred)
+                
         elif sol.status == Status.UNSATISFIABLE:
             actions.append("Unsat")
-            scores[idx_sol] = 0.
+            if criteria == "max_avg":
+                scores[idx_sol] = 0.
+            elif criteria == "min_loss":
+                scores[idx_sol] = 10000.
             se_intervals.append([-1, -1])
     
-    idx_max_action = torch.argmax(scores)
-    return sols[idx_max_action], actions[idx_max_action], se_intervals[idx_max_action]
+    if criteria == "max_avg":
+        idx_selected_action = torch.argmax(scores)
+    elif criteria == "min_loss":
+        idx_selected_action = torch.argmin(scores)
+        
+    return sols[idx_selected_action], actions[idx_selected_action], se_intervals[idx_selected_action]
 
 
 def get_flatted_list(list):
