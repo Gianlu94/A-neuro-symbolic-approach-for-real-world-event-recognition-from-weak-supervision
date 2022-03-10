@@ -493,8 +493,8 @@ def evaluate_test_set_with_proportion_rule(nn_model, se_test, features_test, cfg
             test_predictions["ground_truth"].append(labels_clip)
             test_predictions["outputs_act"].append(outputs_act.data.cpu().detach().numpy())
             
-            new_outputs = avg_labels_test[example_id][predicted_se_name].data.numpy()
-            test_predictions["predictions"].append(new_outputs.data.cpu().detach().numpy())
+            new_outputs = avg_labels_test[example_id][predicted_se_name].data.cpu().detach().numpy()
+            test_predictions["predictions"].append(new_outputs)
 
             se_predictions = np.zeros((new_outputs.shape[0], num_se))
             se_predictions[:, structured_events[predicted_se_name]] = 1
