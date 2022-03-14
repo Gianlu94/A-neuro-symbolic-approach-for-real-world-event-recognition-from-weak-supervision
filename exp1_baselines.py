@@ -151,7 +151,8 @@ def evaluate(
                 actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
             else:
                 actions_ground_truth.extend(np.concatenate((avg_labels_clip_true_se, se_gt), axis=1))
-    
+
+            
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
     
@@ -288,6 +289,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation, num_clips,
     #     structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
     # )
+   
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
@@ -399,13 +401,14 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
     logs_dir = cfg_dataset.tf_logs_dir + exp_info
     os.makedirs(logs_dir, exist_ok=True)
     brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
-    
+
     nn_model.eval()
     structured_events = cfg_train["structured_events"]
     num_examples = len(se_test)
     se_names = list(structured_events.keys())
     num_se = len(se_names)
-    
+
+    features_test = convert_to_float_tensor(features_test)
     labels_test = get_labels(se_test, cfg_train)
     avg_labels_test = get_avg_labels(se_test, cfg_train)
     
@@ -442,7 +445,7 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
         
         new_begin_se = 0
         new_end_se = se_interval[1] - se_interval[0]
-        
+
         # get features for the current video
         features_video = np.array(features_test[video])
         features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
@@ -478,11 +481,11 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
             
             #example_loss = loss(outputs, labels_clip)  # labels_clip)
             #tot_loss += example_loss
-            
+
             predicted_se_name = get_se_prediction(outputs, avg_labels_test[example_id], loss)
             
             outputs_act = ll_activation(outputs)
-            labels_clip = labels_clip.cpu().detach().data.numpy()
+            labels_clip = labels_clip.cpu().data.numpy()
             
             assert len(outputs) == len(labels_clip)
             
@@ -501,9 +504,11 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
             se_gt = np.zeros((new_outputs.shape[0], num_se))
             se_gt[:, structured_events[gt_se_name]] = 1
 
+            # actions_predictions.extend(se_predictions)
+            # actions_ground_truth.extend(se_gt)
             actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
             actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
-   
+            
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
     

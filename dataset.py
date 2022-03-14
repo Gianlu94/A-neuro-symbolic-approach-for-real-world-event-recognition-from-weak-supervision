@@ -219,10 +219,12 @@ def get_labels(se_list, cfg_train):
 # get avg labels for neural baseline
 def get_avg_labels(se_list, cfg_train):
     avg_labels = {}
+    seed = cfg_train["seed"]
     avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     classes_names = cfg_train["classes_names"]
     structured_events = cfg_train["structured_events"]
-    
+
+    rng = random.Random(seed)
     for example in se_list:
         video, se_name, duration, num_features, se_interval = \
             example[0], example[1], example[2], example[3], example[4]
@@ -248,11 +250,11 @@ def get_avg_labels(se_list, cfg_train):
                     if prev_num_frames == (se_duration - 1):
                         # randomly increment one of the actions
                         prev_num_frames = 0
-                        inc_action = random.randint(0, len(values) - 1)
+                        inc_action = rng.randint(0, len(values) - 1)
                     elif prev_num_frames > se_duration:
                         # randomly decrement one of the actions
                         prev_num_frames = 0
-                        dec_action = random.randint(0, len(values) - 1)
+                        dec_action = rng.randint(0, len(values) - 1)
                     
                     for i, avg_value in enumerate(values):
                         
