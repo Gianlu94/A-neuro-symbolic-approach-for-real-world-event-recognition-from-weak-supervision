@@ -79,6 +79,7 @@ def evaluate(
             outputs = out['final_output']
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
+            
             # mnz
             outputs_transpose = ll_activation(outputs.transpose(0, 1))
             
@@ -106,8 +107,8 @@ def evaluate(
                     mnz_gt_sol = sol[0]
                     
             tot_time_mnz += tot_time_example
-            
-            outputs_act = ll_activation(outputs)
+
+            outputs_act = outputs_transpose.transpose(0, 1)
             
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
@@ -355,7 +356,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             fill_mnz_pred_exp1(mnz_pred, sol, se_name)
             
             print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
-            
+
             example_loss = loss(outputs, mnz_pred)
             batch_loss += example_loss
             
