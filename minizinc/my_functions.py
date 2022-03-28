@@ -178,4 +178,30 @@ def build_problem_exp1(se_name, model, nn_output, avg_actions_durations_in_f):
             data += "{} = {};\n".format(action, avg_duration)
 
     return model + data, actions_predictions
+
+
+def set_prop_avg(se_name, se_avg_label, classe_names_abb):
+    se_avg_label_tr = se_avg_label.transpose(0, 1)
+    avg_actions_duration_f = {se_name: {}}
+    if se_name == "HighJump":
+        class_of_interest = [0, 1, 2]
+    elif se_name == "LongJump":
+        class_of_interest = [0, 1, 3]
+    elif se_name == "PoleVault":
+        class_of_interest = [0, 4, 1, 2]
+    elif se_name == "HammerThrow":
+        class_of_interest = [5, 6, 7]
+    elif se_name == "ThrowDiscus":
+        class_of_interest = [8, 9]
+    elif se_name == "Shotput":
+        class_of_interest = [10, 11]
+    elif se_name == "JavelinThrow":
+        class_of_interest = [0, 11]
+        
+    for c in class_of_interest:
+        avg_duration_event = se_avg_label_tr[c].tolist().count(1.0)
+        avg_actions_duration_f[se_name]["avg{}".format(classe_names_abb[c])] = avg_duration_event
+    
+    return avg_actions_duration_f
+    
     

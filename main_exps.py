@@ -3,6 +3,7 @@ import json
 import os
 import random
 
+import numpy as np
 import torch
 import h5py as h5
 
@@ -43,9 +44,11 @@ if __name__ == '__main__':
     num_mlad_layers = cfg_train["num_mlad_layers"]
     dim_of_features = cfg_train["dim_of_features"]
 
+    torch.use_deterministic_algorithms(True)
     cfg_train["use_cuda"] = use_cuda
     seed = cfg_train["seed"]
     # set seed
+    np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
     

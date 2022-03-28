@@ -11,14 +11,14 @@ import pymzn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_labels
+from dataset import get_labels, get_avg_labels
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
-from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
+from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
 
 
 def evaluate(
-        epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, selection_criteria,
-        num_clips, mnz_models, se_labels, avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary,
+        epoch, mode, se_list, features, labels, labels_textual, avg_labels, nn_model, loss, ll_activation, selection_criteria,
+        num_clips, mnz_models, se_labels, avg_actions_durations_f, use_cuda, classes_names, classes_names_abb, writer, brief_summary,
         epochs_predictions
 ):
 
@@ -92,6 +92,9 @@ def evaluate(
             mnz_gt_sol = None
             
             for se_name, mnz_model in mnz_models.items():
+                if avg_labels is not None:
+                    avg_actions_durations_f = set_prop_avg(se_name, avg_labels[example_id][se_name], classes_names_abb)
+                    
                 mnz_problem, _ = build_problem_exp1(se_name, mnz_model, outputs_transpose, avg_actions_durations_f[se_name])
                 
                 start_time = time.time()
@@ -232,6 +235,16 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     elif loss_name == "BCE":
         loss = nn.BCEWithLogitsLoss(reduction="mean")
         
+    # False = use absolute avg, True = use prop avg
+    use_prop_avg = cfg_train["use_prop_avg"]
+    avg_labels_train = None
+    avg_labels_val = None
+    avg_labels_test = None
+    if use_prop_avg :
+        avg_labels_train = get_avg_labels(se_train, cfg_train)
+        avg_labels_val = get_avg_labels(se_val, cfg_train)
+        avg_labels_test = get_avg_labels(se_test, cfg_train)
+    
     selection_criteria = cfg_train["selection_criteria"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
@@ -300,9 +313,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     # )
     # breakpoint()
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
-    #     selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary,
-    #     epochs_predictions["val"]
+    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, avg_labels_val, nn_model, loss, ll_activation,
+    #     selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
+    #     classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
     # )
     optimizer.zero_grad()
     rng = random.Random(cfg_train["seed"])
@@ -342,6 +355,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             # minizinc part
             tot_time_example = 0
 
+            if use_prop_avg:
+                avg_actions_durations_f = set_prop_avg(se_name, avg_labels_train[example_id][se_name], classes_names_abb)
+            
             mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], outputs_act, avg_actions_durations_f[se_name])
             
             start_time = time.time()
@@ -392,8 +408,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
-            selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, avg_labels_val, nn_model, loss, ll_activation,
+            selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
+            classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
@@ -419,8 +436,9 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation,
-        selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, avg_labels_test, nn_model, loss, ll_activation,
+        selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
+        classes_names_abb, None, brief_summary, epochs_predictions["test"]
     )
 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
