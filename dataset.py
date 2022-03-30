@@ -303,7 +303,7 @@ def get_avg_labels(se_list, cfg_train):
                             if i == 1:
                                 columns.extend([11] * num_frames_to_label)
                             else:
-                                columns.extend([11] * num_frames_to_label)
+                                columns.extend([i] * num_frames_to_label)
                         else:
                             columns.extend([i] * num_frames_to_label)
                         
