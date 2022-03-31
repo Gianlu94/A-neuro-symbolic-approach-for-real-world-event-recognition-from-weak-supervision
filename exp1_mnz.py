@@ -79,7 +79,6 @@ def evaluate(
             outputs = out['final_output']
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
-            
             # mnz
             outputs_transpose = ll_activation(outputs.transpose(0, 1))
             
@@ -126,7 +125,8 @@ def evaluate(
                 labels_clip = mnz_gt
                 labels_clip_textual = mnz_gt_sol
 
-            example_loss = loss(outputs, labels_clip)
+            #example_loss = loss(outputs, labels_clip)
+            example_loss = loss(outputs, torch.argmax(labels_clip, 1))
             
             tot_loss += example_loss
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
@@ -317,6 +317,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     #     selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
     #     classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
     # )
+    # breakpoint()
     optimizer.zero_grad()
     rng = random.Random(cfg_train["seed"])
     for epoch in range(1, num_epochs + 1):
@@ -348,7 +349,6 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             out = nn_model(features_clip.unsqueeze(0))
             
             outputs = out['final_output'][0]
-
             # mnz
             outputs_act = ll_activation(outputs.transpose(0, 1))
 
@@ -373,7 +373,8 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             
             print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
 
-            example_loss = loss(outputs, mnz_pred)
+            #example_loss = loss(outputs, mnz_pred)
+            example_loss = loss(outputs, torch.argmax(mnz_pred, 1))
             batch_loss += example_loss
             
             example_loss.backward()
@@ -383,7 +384,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             
             print(
                 "\nEpoch {} - example {}/{} ---- loss = {:.4f}\n".format(epoch, index + 1, num_training_examples, example_loss))
-            
+
             # batch update
             if (index + 1) % batch_size == 0:
                 print("\nEpoch {} BATCH ---- loss = {}\n".format(epoch, batch_loss))
@@ -412,7 +413,7 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
             classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
         )
-        
+
         if fmap_score > max_fmap_score:
             best_model_ep = epoch
             max_fmap_score = fmap_score

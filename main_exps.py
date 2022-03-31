@@ -44,16 +44,19 @@ if __name__ == '__main__':
     num_mlad_layers = cfg_train["num_mlad_layers"]
     dim_of_features = cfg_train["dim_of_features"]
 
-    torch.use_deterministic_algorithms(True)
     cfg_train["use_cuda"] = use_cuda
     seed = cfg_train["seed"]
-    # set seed
-    np.random.seed(seed)
+
+    # reproducibility
     random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     
     nn_model = build_model(
-        model_version, num_clips, cfg_train["classes"], dim_of_features, num_clips, num_mlad_layers)
+        model_version, num_clips, cfg_train["classes"], dim_of_features, num_clips, num_mlad_layers)#.double()
 
     # load pretrained model
     if "path_to_pretrain_model" in cfg_train:
@@ -85,6 +88,7 @@ if __name__ == '__main__':
         path_to_mnz = cfg_train["path_to_mnz_models"]
         # minizinc models for each structured event (se)
         mnz_files_names = os.listdir(path_to_mnz)
+        mnz_files_names.sort()
         mnz_models = {}
         for mnz_file_name in mnz_files_names:
             se_name = mnz_file_name.split(".")[0]
