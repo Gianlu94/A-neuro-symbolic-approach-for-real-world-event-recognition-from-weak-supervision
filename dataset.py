@@ -231,7 +231,7 @@ def get_avg_labels(se_list, cfg_train):
         
         # get duration of s
         se_duration = (se_interval[1] - se_interval[0]) + 1
-        
+
         for current_se in structured_events:
             if current_se != "StructuredJump" and current_se != "StructuredThrow":
                 avg_values = list(avg_actions_durations_f[current_se].values())
@@ -251,10 +251,11 @@ def get_avg_labels(se_list, cfg_train):
                         # randomly increment one of the actions
                         prev_num_frames = 0
                         inc_action = rng.randint(0, len(values) - 1)
-                    elif prev_num_frames > se_duration:
-                        # randomly decrement one of the actions
-                        prev_num_frames = 0
-                        dec_action = rng.randint(0, len(values) - 1)
+                    # elif prev_num_frames > se_duration:
+                    #     breakpoint()
+                    #     # randomly decrement one of the actions
+                    #     prev_num_frames = 0
+                    #     dec_action = rng.randint(0, len(values) - 1)
                     
                     for i, avg_value in enumerate(values):
                         
@@ -309,6 +310,11 @@ def get_avg_labels(se_list, cfg_train):
                         
                         prev_num_frames += num_frames_to_label
         
+                    if prev_num_frames > se_duration:
+                        prev_num_frames = se_duration
+                        rows = rows[:se_duration]
+                        columns = columns[:se_duration]
+                    
                 assert len(rows) == len(columns)
                 label_tensor[rows, columns] = 1
                 clip_key = "{}-{}-{}".format(video, se_name, se_interval)
