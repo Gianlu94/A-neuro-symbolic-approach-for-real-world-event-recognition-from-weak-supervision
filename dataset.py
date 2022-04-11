@@ -324,3 +324,27 @@ def get_avg_labels(se_list, cfg_train):
     return avg_labels
 
 
+def get_se_labels(se_list, cfg_train):
+    structured_events = cfg_train["structured_events"]
+    num_se = cfg_train["classes"]
+    labels = {}
+    
+    for example in se_list:
+        video, se_name, _, _, se_interval = example[0], example[1], example[2], example[3], example[4]
+        clip_key = "{}-{}-{}".format(video, se_name, se_interval)
+
+        se_duration = (se_interval[1] - se_interval[0]) + 1
+        
+        for current_se, idx in structured_events.items():
+            
+            label_tensor = torch.zeros(se_duration, num_se)
+            label_tensor[:, idx] = 1.
+            
+            if clip_key not in labels:
+                labels[clip_key] = {}
+            
+            labels[clip_key][current_se] = label_tensor
+        
+    return labels
+
+

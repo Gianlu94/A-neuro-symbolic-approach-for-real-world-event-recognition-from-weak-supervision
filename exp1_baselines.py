@@ -1,4 +1,5 @@
 import os
+import copy
 import pickle
 import random
 import time
@@ -10,11 +11,11 @@ from torch import nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_labels, get_avg_labels
+from dataset import get_labels, get_avg_labels, get_se_labels
 from utils import convert_to_float_tensor
 
-
-def get_se_prediction(outputs, avg_labels_clip, loss):
+        
+def get_se_prediction_min_loss(outputs, avg_labels_clip, loss):
     se_labels = list(avg_labels_clip.keys())
     num_se = len(se_labels)
     scores = torch.zeros((num_se))
@@ -54,7 +55,7 @@ def set_outputs_for_metrics_computation(pred_se_name, outputs):
 
     
 def evaluate(
-        epoch, mode, se_list, features, labels, avg_labels, nn_model, loss, ll_activation, num_clips, se_labels,
+        epoch, mode, se_list, features, labels, new_labels, is_nn_for_aa,  nn_model, loss, ll_activation, num_clips, se_labels,
         use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
     nn_model.eval()
@@ -88,11 +89,13 @@ def evaluate(
         # get clip and its labels
         features_clip = features_video[se_interval[0]:se_interval[1] + 1]
         
-        labels_clip = labels[example_id]
-        avg_labels_clip = avg_labels[example_id]
-        #avg_labels_clip_true_se = avg_labels_clip[gt_se_name]
+        if is_nn_for_aa:
+            labels_clip = labels[example_id]
+        else:
+            labels_clip = new_labels[example_id][gt_se_name]
+            
+        new_labels_clip = new_labels[example_id]
         
-        # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
         with torch.no_grad():
             if num_clips > 0:
                 if len(features_clip) < num_clips:
@@ -114,17 +117,20 @@ def evaluate(
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
 
-            predicted_se_name = get_se_prediction(outputs, avg_labels_clip, loss)
-            avg_labels_clip_predicted_se = avg_labels_clip[predicted_se_name]
+            
+            predicted_se_name = get_se_prediction_min_loss(outputs, new_labels_clip, loss)
+            labels_clip_predicted_se = new_labels_clip[predicted_se_name]
+            
             #example_loss = loss(outputs, avg_labels_clip_pred_se)
             #tot_loss += example_loss
             
             outputs_act = ll_activation(outputs)
+            #breakpoint()
             labels_clip = labels_clip.cpu().data.numpy()
-            avg_labels_clip_true_se = avg_labels_clip[gt_se_name].cpu().data.numpy()
-            avg_labels_clip_predicted_se = avg_labels_clip_predicted_se.cpu().data.numpy()
+            labels_clip_true_se = new_labels_clip[gt_se_name].cpu().data.numpy()
+            labels_clip_predicted_se = labels_clip_predicted_se.cpu().data.numpy()
             
-            assert len(outputs) == len(avg_labels_clip_predicted_se)
+            assert len(outputs) == len(labels_clip_predicted_se)
             
             epochs_predictions["epoch"].append(epoch)
             epochs_predictions["video"].append(video)
@@ -134,25 +140,32 @@ def evaluate(
             if mode == "Test":
                 epochs_predictions["ground_truth"].append(labels_clip)
             else:
-                epochs_predictions["ground_truth"].append(avg_labels_clip_true_se)
+                epochs_predictions["ground_truth"].append(labels_clip_true_se)
                 
-            epochs_predictions["ground_truth_avg_pred_se"].append(avg_labels_clip_predicted_se)
+            epochs_predictions["ground_truth_avg_pred_se"].append(labels_clip_predicted_se)
             epochs_predictions["outputs_act"].append(outputs_act.cpu().detach().numpy())
-            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
-            epochs_predictions["predictions"].append(new_outputs.cpu().detach().numpy())
             
-            se_predictions = np.zeros((new_outputs.shape[0], num_se))
-            se_predictions[:, se_labels[predicted_se_name]] = 1
-            se_gt = np.zeros((new_outputs.shape[0], num_se))
-            se_gt[:, se_labels[gt_se_name]] = 1
-            
-            actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
-            if mode == "Test":
-                actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
-            else:
-                actions_ground_truth.extend(np.concatenate((avg_labels_clip_true_se, se_gt), axis=1))
+            if is_nn_for_aa:
+                new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
+                epochs_predictions["predictions"].append(new_outputs.cpu().detach().numpy())
+                se_predictions = np.zeros((new_outputs.shape[0], num_se))
+                se_predictions[:, se_labels[predicted_se_name]] = 1
+                se_gt = np.zeros((new_outputs.shape[0], num_se))
+                se_gt[:, se_labels[gt_se_name]] = 1
 
+                
+                if mode == "Test":
+                    actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
+                else:
+                    #avg labels
+                    actions_ground_truth.extend(np.concatenate((labels_clip_true_se, se_gt), axis=1))
+                
+                actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
+            else:
+                actions_ground_truth.extend(labels_clip_true_se)
+                actions_predictions.extend(labels_clip_predicted_se)
             
+
     actions_ground_truth = np.array(actions_ground_truth)
     actions_predictions = np.array(actions_predictions)
     
@@ -184,8 +197,12 @@ def evaluate(
     print(metrics_to_print, flush=True)
     brief_summary.write(metrics_to_print)
     
+    classes_to_metrics = copy.deepcopy(classes_names)
+    if is_nn_for_aa:
+        classes_to_metrics += se_names
+    
     if writer is not None:
-        for i, class_name in enumerate(classes_names + se_names):
+        for i, class_name in enumerate(classes_to_metrics):
             # writer.add_scalar("Loss {} ".format(class_name), tot_loss.item()/num_se, epoch)
             writer.add_scalar("F1 Score {} ".format(class_name), actions_f1_scores[i], epoch)
             writer.add_scalar("Precision {} ".format(class_name), actions_precision[i], epoch)
@@ -218,14 +235,14 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     loss = None
     if loss_name == "CE":
         loss = nn.CrossEntropyLoss(reduction="mean")
-        
+
+    is_nn_for_aa = cfg_train["is_nn_for_aa"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
     weight_decay = cfg_train["weight_decay"]
     optimizer = cfg_train["optimizer"]
     num_clips = cfg_train["num_clips"]
-    classes_names = cfg_train["classes_names"]
     structured_events = cfg_train["structured_events"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
@@ -270,14 +287,27 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    avg_labels_train = get_avg_labels(se_train, cfg_train)
-    
-    labels_val = get_labels(se_val, cfg_train)
-    avg_labels_val = get_avg_labels(se_val, cfg_train)
- 
-    labels_test = get_labels(se_test, cfg_train)
-    avg_labels_test = get_avg_labels(se_test, cfg_train)
-    
+
+    labels_val = None
+    labels_test = None
+    # new_labels refer to avg labels or se_labels depending on the exp
+    new_labels_train = None
+    new_labels_val = None
+    new_labels_test = None
+
+    if is_nn_for_aa:
+        labels_val = get_labels(se_val, cfg_train)
+        labels_test = get_labels(se_test, cfg_train)
+        new_labels_train = get_avg_labels(se_train, cfg_train)
+        new_labels_val = get_avg_labels(se_val, cfg_train)
+        new_labels_test = get_avg_labels(se_test, cfg_train)
+        classes_names = cfg_train["classes_names"]
+    else:
+        new_labels_train = get_se_labels(se_train, cfg_train)
+        new_labels_val = get_se_labels(se_val, cfg_train)
+        new_labels_test = get_se_labels(se_test, cfg_train)
+        classes_names = list(structured_events.keys())
+        
     max_fmap_score = 0.
     
     num_training_examples = len(se_train)
@@ -286,9 +316,12 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
     rng = random.Random(cfg_train["seed"])
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation, num_clips,
-    #     structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+    #     -1, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_aa, nn_model, loss,
+    #     ll_activation,
+    #     num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+    #     epochs_predictions["val"]
     # )
+    #breakpoint()
    
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
@@ -310,14 +343,15 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             # get clip and its labels
             features_clip = features_video[se_interval[0]:se_interval[1] + 1]
             id_label = "{}-{}-{}".format(video, gt_se_name, se_interval)
-            avg_labels_clip_true_se = avg_labels_train[id_label][gt_se_name]
+            
+            true_labels_clip = new_labels_train[id_label][gt_se_name]
             
             # get the output from the network
             out = nn_model(features_clip.unsqueeze(0))
             
             outputs = out['final_output'][0]
 
-            example_loss = loss(outputs, avg_labels_clip_true_se)
+            example_loss = loss(outputs, true_labels_clip)
 
             batch_loss += example_loss
             
@@ -336,19 +370,25 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
             outputs_act = ll_activation(outputs)
 
-            predicted_se_name = get_se_prediction(outputs, avg_labels_train[id_label], loss)
-            avg_labels_clip_pred_se = avg_labels_train[id_label][predicted_se_name]
-
+            predicted_se_name = get_se_prediction_min_loss(outputs, new_labels_train[id_label], loss)
+          
+            labels_clip_pred_se = new_labels_train[id_label][predicted_se_name]
+            
             epochs_predictions["train"]["epoch"].append(epoch)
             epochs_predictions["train"]["video"].append(video)
             epochs_predictions["train"]["gt_se_names"].append(gt_se_name)
             epochs_predictions["train"]["pred_se_names"].append(predicted_se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
-            epochs_predictions["train"]["ground_truth"].append(avg_labels_clip_true_se.cpu().detach().numpy())
-            epochs_predictions["train"]["ground_truth_avg_pred_se"].append(avg_labels_clip_pred_se.cpu().detach().numpy())
+            epochs_predictions["train"]["ground_truth"].append(true_labels_clip.cpu().detach().numpy())
+            epochs_predictions["train"]["ground_truth_avg_pred_se"].append(
+                labels_clip_pred_se.cpu().detach().numpy())
+            
+            if is_nn_for_aa:
+                new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
+                epochs_predictions["train"]["predictions"].append(new_outputs.cpu().detach().numpy())
+
+            epochs_predictions["train"]["predictions"].append(labels_clip_pred_se.cpu().detach().numpy())
             epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
-            new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
-            epochs_predictions["train"]["predictions"].append(new_outputs.cpu().detach().numpy())
             
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
@@ -356,7 +396,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation,
+            epoch, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_aa, nn_model, loss, ll_activation,
             num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
             epochs_predictions["val"]
         )
@@ -384,7 +424,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, loss, ll_activation, num_clips,
+        best_model_ep, "Test", se_test, features_test, labels_test, new_labels_test, is_nn_for_aa, nn_model, loss, ll_activation, num_clips,
         structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
@@ -482,7 +522,7 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
             #example_loss = loss(outputs, labels_clip)  # labels_clip)
             #tot_loss += example_loss
 
-            predicted_se_name = get_se_prediction(outputs, avg_labels_test[example_id], loss)
+            predicted_se_name = get_se_prediction_min_loss(outputs, avg_labels_test[example_id], loss)
             
             outputs_act = ll_activation(outputs)
             labels_clip = labels_clip.cpu().data.numpy()

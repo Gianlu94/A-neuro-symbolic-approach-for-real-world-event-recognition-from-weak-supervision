@@ -1,0 +1,30 @@
+{
+  "exp": "1-neural_baseline",
+  "seed": 0,
+  "run_id": 1,
+  "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
+  "is_nn_for_aa": false,
+  "val_ratio": 0.1,
+  "num_epochs": 20,
+  "save_epochs": 1,
+  "batch_size": 5,
+  "ll_activation": "softmax",
+  "loss": "CE",
+  "learning_rate": 1e-3,
+  "weight_decay": 1e-6,
+  "optimizer": "Adam",
+  "model_version": "v1",
+  "num_mlad_layers": 5,
+  "num_clips": 128,
+  "dim_of_features": 2048,
+  "classes": 7,
+  "structured_events": {
+    "HighJump": 0,
+    "LongJump": 1,
+    "PoleVault": 2,
+    "HammerThrow": 3,
+    "ThrowDiscus": 4,
+    "Shotput": 5,
+    "JavelinThrow": 6
+  }
+}
