@@ -223,6 +223,7 @@ def get_avg_labels(se_list, cfg_train):
     avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     classes_names = cfg_train["classes_names"]
     structured_events = cfg_train["structured_events"]
+    is_nn_for_ev = cfg_train["is_nn_for_ev"]
 
     rng = random.Random(seed)
     for example in se_list:
@@ -317,6 +318,10 @@ def get_avg_labels(se_list, cfg_train):
                     
                 assert len(rows) == len(columns)
                 label_tensor[rows, columns] = 1
+                # set to 1 structured events
+                if is_nn_for_ev == 2:
+                    label_tensor[:, 12+structured_events[current_se]] = 1
+                    
                 clip_key = "{}-{}-{}".format(video, se_name, se_interval)
                 if clip_key not in avg_labels:
                     avg_labels[clip_key] = {}
@@ -346,5 +351,8 @@ def get_se_labels(se_list, cfg_train):
             labels[clip_key][current_se] = label_tensor
         
     return labels
+
+    
+    
 
 

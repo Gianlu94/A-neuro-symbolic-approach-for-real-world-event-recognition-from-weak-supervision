@@ -49,13 +49,12 @@ def set_outputs_for_metrics_computation(pred_se_name, outputs):
     elif pred_se_name == "JavelinThrow":
         tmp_outputs[:, 1:11] = 0
 
-    new_outputs[:, torch.argmax(tmp_outputs, 1)] = 1
-
+    new_outputs[range(new_outputs.shape[0]), torch.argmax(tmp_outputs, 1)] = 1
     return new_outputs
 
     
 def evaluate(
-        epoch, mode, se_list, features, labels, new_labels, is_nn_for_aa,  nn_model, loss, ll_activation, num_clips, se_labels,
+        epoch, mode, se_list, features, labels, new_labels, is_nn_for_ev,  nn_model, loss, ll_activation, num_clips, se_labels,
         use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
     nn_model.eval()
@@ -89,9 +88,9 @@ def evaluate(
         # get clip and its labels
         features_clip = features_video[se_interval[0]:se_interval[1] + 1]
         
-        if is_nn_for_aa:
+        if is_nn_for_ev == 0:
             labels_clip = labels[example_id]
-        else:
+        elif is_nn_for_ev == 1 or is_nn_for_ev == 2:
             labels_clip = new_labels[example_id][gt_se_name]
             
         new_labels_clip = new_labels[example_id]
@@ -145,7 +144,7 @@ def evaluate(
             epochs_predictions["ground_truth_avg_pred_se"].append(labels_clip_predicted_se)
             epochs_predictions["outputs_act"].append(outputs_act.cpu().detach().numpy())
             
-            if is_nn_for_aa:
+            if is_nn_for_ev == 0:
                 new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
                 epochs_predictions["predictions"].append(new_outputs.cpu().detach().numpy())
                 se_predictions = np.zeros((new_outputs.shape[0], num_se))
@@ -161,9 +160,23 @@ def evaluate(
                     actions_ground_truth.extend(np.concatenate((labels_clip_true_se, se_gt), axis=1))
                 
                 actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
-            else:
+            elif is_nn_for_ev == 1:
                 actions_ground_truth.extend(labels_clip_true_se)
                 actions_predictions.extend(labels_clip_predicted_se)
+            elif is_nn_for_ev == 2:
+                # number of ae
+                num_ae = len(classes_names) - len(se_labels)
+                new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
+                new_outputs = np.concatenate((new_outputs[:, :num_ae], labels_clip[:, num_ae:]), 1)
+
+                if mode == "Test":
+                    actions_ground_truth.extend(labels_clip)
+                else:
+                    # avg labels
+                    actions_ground_truth.extend(labels_clip_true_se)
+                
+                actions_predictions.extend(new_outputs)
+                epochs_predictions["predictions"].append(new_outputs)
             
 
     actions_ground_truth = np.array(actions_ground_truth)
@@ -198,7 +211,7 @@ def evaluate(
     brief_summary.write(metrics_to_print)
     
     classes_to_metrics = copy.deepcopy(classes_names)
-    if is_nn_for_aa:
+    if is_nn_for_ev == 0:
         classes_to_metrics += se_names
     
     if writer is not None:
@@ -230,13 +243,18 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     ll_activation = None
     if ll_activation_name == "softmax":
         ll_activation = nn.Softmax(1)
+    elif ll_activation_name == "sigmoid":
+        ll_activation = nn.Sigmoid()
+        
     # loss function
     loss_name = cfg_train["loss"]
     loss = None
     if loss_name == "CE":
         loss = nn.CrossEntropyLoss(reduction="mean")
+    elif loss_name == "BCE":
+        loss = nn.BCEWithLogitsLoss()
 
-    is_nn_for_aa = cfg_train["is_nn_for_aa"]
+    is_nn_for_ev = cfg_train["is_nn_for_ev"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
@@ -295,19 +313,19 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     new_labels_val = None
     new_labels_test = None
 
-    if is_nn_for_aa:
+    if is_nn_for_ev == 0 or is_nn_for_ev == 2: # 0 = nn for atomic events, 2 = nn for atomic and structured events
         labels_val = get_labels(se_val, cfg_train)
         labels_test = get_labels(se_test, cfg_train)
         new_labels_train = get_avg_labels(se_train, cfg_train)
         new_labels_val = get_avg_labels(se_val, cfg_train)
         new_labels_test = get_avg_labels(se_test, cfg_train)
         classes_names = cfg_train["classes_names"]
-    else:
+    elif is_nn_for_ev == 1: # 1 = nn for structured
         new_labels_train = get_se_labels(se_train, cfg_train)
         new_labels_val = get_se_labels(se_val, cfg_train)
         new_labels_test = get_se_labels(se_test, cfg_train)
         classes_names = list(structured_events.keys())
-        
+    
     max_fmap_score = 0.
     
     num_training_examples = len(se_train)
@@ -316,12 +334,11 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
 
     rng = random.Random(cfg_train["seed"])
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_aa, nn_model, loss,
+    #     -1, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_ev, nn_model, loss,
     #     ll_activation,
     #     num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
     #     epochs_predictions["val"]
     # )
-    #breakpoint()
    
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
@@ -383,11 +400,18 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             epochs_predictions["train"]["ground_truth_avg_pred_se"].append(
                 labels_clip_pred_se.cpu().detach().numpy())
             
-            if is_nn_for_aa:
+            if is_nn_for_ev == 0:
                 new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
                 epochs_predictions["train"]["predictions"].append(new_outputs.cpu().detach().numpy())
+            elif is_nn_for_ev == 1:
+                epochs_predictions["train"]["predictions"].append(labels_clip_pred_se.cpu().detach().numpy())
+            elif is_nn_for_ev == 2:
+                #filter ae based on se predicitons
+                num_ae = cfg_train["classes"] - len(structured_events)
+                new_outputs = set_outputs_for_metrics_computation(predicted_se_name, outputs_act)
+                new_outputs = torch.cat((new_outputs[:, :num_ae], labels_clip_pred_se[:, num_ae:]), 1)
+                epochs_predictions["train"]["predictions"].append(new_outputs.cpu().detach().numpy())
 
-            epochs_predictions["train"]["predictions"].append(labels_clip_pred_se.cpu().detach().numpy())
             epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
             
         end_time_epoch = time.time()
@@ -396,7 +420,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_aa, nn_model, loss, ll_activation,
+            epoch, "Validation", se_val, features_train, labels_val, new_labels_val, is_nn_for_ev, nn_model, loss, ll_activation,
             num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
             epochs_predictions["val"]
         )
@@ -424,7 +448,7 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, new_labels_test, is_nn_for_aa, nn_model, loss, ll_activation, num_clips,
+        best_model_ep, "Test", se_test, features_test, labels_test, new_labels_test, is_nn_for_ev, nn_model, loss, ll_activation, num_clips,
         structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 

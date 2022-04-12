@@ -3,7 +3,7 @@
   "seed": 0,
   "run_id": 1,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
-  "is_nn_for_aa": false,
+  "is_nn_for_ev": 1,
   "val_ratio": 0.1,
   "num_epochs": 20,
   "save_epochs": 1,
