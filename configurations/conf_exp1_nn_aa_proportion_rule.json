@@ -1,0 +1,68 @@
+{
+  "exp": "1-proportion_rule_baseline",
+  "seed": 0,
+  "run_id": 0,
+  "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
+  "path_to_pretrain_model": "./results/saved_models/new_neural/exp1_neural_aa_hrabal/ne_20_bs_5_lr_0.001_wd_1e-06_opt_Adam/model_7.pth",
+  "is_nn_for_ev": 0,
+  "val_ratio": 0.1,
+  "ll_activation": "softmax",
+  "loss": "CE",
+  "model_version": "v1",
+  "num_mlad_layers": 5,
+  "num_clips": 128,
+  "dim_of_features": 2048,
+  "classes": 12,
+  "structured_events": {
+    "HighJump": 0,
+    "LongJump": 1,
+    "PoleVault": 2,
+    "HammerThrow": 3,
+    "ThrowDiscus": 4,
+    "Shotput": 5,
+    "JavelinThrow": 6
+  },
+  "classes_names": [
+    "Run", "Jump", "Fall",
+    "Sit",
+    "PoleVaultPlantPole",
+    "HammerThrowWindUp", "HammerThrowSpin", "HammerThrowRelease",
+    "DiscusWindUp", "DiscusRelease",
+    "ShotPutBend", "Throw"
+  ],
+  "avg_actions_durations_f" : {
+    "HighJump": {
+      "avgR": 7,
+      "avgJ": 2,
+      "avgF": 3
+    },
+    "LongJump": {
+      "avgR": 11,
+      "avgJ": 6,
+      "avgS": 11
+    },
+    "PoleVault":{
+      "avgR": 9,
+      "avgPVPP": 2 ,
+      "avgJ": 7,
+      "avgF": 4
+    },
+    "HammerThrow": {
+        "avgHT_WU": 8,
+        "avgHT_S": 8,
+        "avgHT_R": 3
+    },
+    "ThrowDiscus": {
+        "avgTD_WU": 4,
+        "avgTD_R": 3
+    },
+    "Shotput": {
+        "avgSPB": 6,
+        "avgT": 4
+    },
+    "JavelinThrow": {
+        "avgR": 14,
+        "avgT": 2
+    }
+  }
+}

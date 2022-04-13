@@ -466,6 +466,8 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
     os.makedirs(logs_dir, exist_ok=True)
     brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
 
+    is_nn_for_ev = cfg_train["is_nn_for_ev"]
+    
     nn_model.eval()
     structured_events = cfg_train["structured_events"]
     num_examples = len(se_test)
@@ -473,9 +475,18 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
     num_se = len(se_names)
 
     features_test = convert_to_float_tensor(features_test)
+    if is_nn_for_ev == 1:
+        cfg_train["classes"] = 12
     labels_test = get_labels(se_test, cfg_train)
-    avg_labels_test = get_avg_labels(se_test, cfg_train)
     
+    new_labels_test = None
+    if is_nn_for_ev == 0:
+        new_labels_test = get_avg_labels(se_test, cfg_train)
+    elif is_nn_for_ev == 1:
+        cfg_train["classes"] = len(structured_events)
+        avg_labels_test = get_avg_labels(se_test, cfg_train)
+        new_labels_test = get_se_labels(se_test, cfg_train)
+        
     # last layer activation
     ll_activation_name = cfg_train["ll_activation"]
     ll_activation = None
@@ -545,8 +556,7 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
             
             #example_loss = loss(outputs, labels_clip)  # labels_clip)
             #tot_loss += example_loss
-
-            predicted_se_name = get_se_prediction_min_loss(outputs, avg_labels_test[example_id], loss)
+            predicted_se_name = get_se_prediction_min_loss(outputs, new_labels_test[example_id], loss)
             
             outputs_act = ll_activation(outputs)
             labels_clip = labels_clip.cpu().data.numpy()
@@ -560,7 +570,12 @@ def evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test
             test_predictions["ground_truth"].append(labels_clip)
             test_predictions["outputs_act"].append(outputs_act.data.cpu().detach().numpy())
             
-            new_outputs = avg_labels_test[example_id][predicted_se_name].data.cpu().detach().numpy()
+            if is_nn_for_ev == 0:
+                # avg labels are named as new_labels in this case
+                new_outputs = new_labels_test[example_id][predicted_se_name].data.cpu().detach().numpy()
+            elif is_nn_for_ev == 1:
+                new_outputs = avg_labels_test[example_id][predicted_se_name].data.cpu().detach().numpy()
+                
             test_predictions["predictions"].append(new_outputs)
 
             se_predictions = np.zeros((new_outputs.shape[0], num_se))
