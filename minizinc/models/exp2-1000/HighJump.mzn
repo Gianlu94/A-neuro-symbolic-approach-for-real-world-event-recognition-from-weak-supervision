@@ -11,9 +11,16 @@
 int: bHJ;
 int: eHJ;
 
-int: avgR;
-int: avgJ;
-int: avgF;
+int: minR = 2;
+int: maxR = 36;
+int: minJ = 1;
+int: maxJ = 12;
+int: minF = 1;
+int: maxF = 21;
+
+int: targetR = maxR - minR + 1;
+int: targetJ = maxJ - minJ + 1;
+int: targetF = maxF - minF + 1;
 
 % optimizer decision variables
 var bHJ .. eHJ: bR;
@@ -23,10 +30,18 @@ var bHJ .. eHJ: eJ;
 var bHJ .. eHJ: bF;
 var bHJ .. eHJ: eF;
 
+var int: lenR = eR - bR + 1;
+var int: lenJ = eJ - bJ + 1;
+var int: lenF = eF - bF + 1;
+
+
 % all ends have to be greater than their corresponding begin
 constraint eR >= bR /\ eJ >= bJ /\ eF >= bF;
 
 constraint bR == bHJ /\ eR == (bJ-1) /\ eJ == (bF-1) /\ eF == eHJ;
+
+constraint lenR >= lenJ /\ lenR >= lenF /\ lenF >= lenJ /\ lenR >= (lenJ + lenF);
+
 
 % component of the cost function
 var int: cost_comp_run_pos = - sum (t in bR..eR) (actions_predictions[1,t]);
@@ -43,7 +58,7 @@ var int: cost = (
   cost_comp_run_pos + cost_comp_run_neg
   + cost_comp_jump_pos + cost_comp_jump_neg_1 + cost_comp_jump_neg_2
   + cost_comp_fall_pos + cost_comp_fall_neg
-  + 1000 * abs(avgR - (eR - bR + 1)) + 1000 * abs(avgJ - (eJ - bJ + 1)) + 1000 * abs(avgF - (eF - bF + 1))
+  + 1000 * abs(targetR - lenR) + 1000 * abs(targetJ - lenJ) + 1000 * abs(targetF - lenF)
 );
 
 solve minimize cost;

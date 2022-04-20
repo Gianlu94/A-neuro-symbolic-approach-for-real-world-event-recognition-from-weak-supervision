@@ -349,7 +349,7 @@ def get_se_labels(se_list, cfg_train):
                 labels[clip_key] = {}
             
             labels[clip_key][current_se] = label_tensor
-        
+
     return labels
 
     

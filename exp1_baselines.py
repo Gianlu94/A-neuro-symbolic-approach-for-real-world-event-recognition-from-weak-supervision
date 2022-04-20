@@ -124,7 +124,7 @@ def evaluate(
             #tot_loss += example_loss
             
             outputs_act = ll_activation(outputs)
-            #breakpoint()
+
             labels_clip = labels_clip.cpu().data.numpy()
             labels_clip_true_se = new_labels_clip[gt_se_name].cpu().data.numpy()
             labels_clip_predicted_se = labels_clip_predicted_se.cpu().data.numpy()
@@ -362,12 +362,12 @@ def train_exp1_neural(se_train, se_val, se_test, features_train, features_test, 
             id_label = "{}-{}-{}".format(video, gt_se_name, se_interval)
             
             true_labels_clip = new_labels_train[id_label][gt_se_name]
-            
+
             # get the output from the network
             out = nn_model(features_clip.unsqueeze(0))
             
             outputs = out['final_output'][0]
-
+            
             example_loss = loss(outputs, true_labels_clip)
 
             batch_loss += example_loss

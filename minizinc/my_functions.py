@@ -139,7 +139,7 @@ def _create_actions_matrix(actions_predictions):
     return mnz_array + content
 
 
-def build_problem_exp1(se_name, model, nn_output, avg_actions_durations_in_f):
+def build_problem_exp1(se_name, model, nn_output, avg_actions_durations_in_f=None):
     # index start from 1 in array (no zero)
     se_begin = 1
     se_end = nn_output.shape[1]

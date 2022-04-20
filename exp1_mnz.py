@@ -308,16 +308,10 @@ def train_exp1_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     num_training_examples = len(se_train)
 
     # fmap_score = evaluate(
-    #     5, "Train", se_train, features_train, labels_train, labels_train_textual, nn_model, bceWLL, num_clips,
-    #     mnz_models, structured_events, avg_actions_durations_s, use_cuda, classes_names, None, None, None
-    # )
-    # breakpoint()
-    # fmap_score = evaluate(
     #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, avg_labels_val, nn_model, loss, ll_activation,
     #     selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names,
     #     classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
     # )
-    # breakpoint()
     optimizer.zero_grad()
     rng = random.Random(cfg_train["seed"])
     for epoch in range(1, num_epochs + 1):

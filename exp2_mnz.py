@@ -11,38 +11,20 @@ import pymzn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_labels
+from dataset import get_labels, get_avg_labels
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
-from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol
-
-
-def set_third_layer_action(second_layer_action):
-    models_to_check = []
-    third_layer_action = []
-    
-    if second_layer_action == "HighJump" or second_layer_action == "LongJump" or second_layer_action == "PoleVault":
-        models_to_check.extend(["HighJump", "LongJump", "PoleVault"])
-        third_layer_action = "StructuredJump"
-    elif second_layer_action == "HammerThrow" or second_layer_action == "ThrowDiscus" or second_layer_action == "Shotput" or \
-            second_layer_action == "JavelinThrow":
-        models_to_check.extend(["HammerThrow", "ThrowDiscus", "Shotput", "JavelinThrow"])
-        third_layer_action = "StructuredThrow"
-    
-    return third_layer_action, models_to_check
+from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
 
 
 def evaluate(
         epoch, mode, se_list, features, labels, labels_textual, nn_model, loss, ll_activation, selection_criteria,
-        num_clips, mnz_models, se_labels, avg_actions_durations_f, use_cuda, classes_names, writer, brief_summary,
-        epochs_predictions
+        num_clips, mnz_models, se_labels, use_cuda, classes_names, classes_names_abb, writer,
+        brief_summary, epochs_predictions
 ):
-
     nn_model.eval()
     se_names = list(se_labels.keys())
     num_se = len(se_list)
     num_mnz_models = len(mnz_models.keys())
-    # num events of second and third layer of the hierarchy
-    num_events = len(se_labels.keys())
     actions_predictions = []
     actions_ground_truth = []
     
@@ -53,7 +35,6 @@ def evaluate(
     
     for i, example in enumerate(se_list):
         video, gt_se_name, duration, num_features, se_interval, _ = example
-        third_layer_action_gt, _ = set_third_layer_action(gt_se_name)
         
         new_begin_se = 0
         new_end_se = se_interval[1] - se_interval[0]
@@ -69,7 +50,7 @@ def evaluate(
         
         labels_clip = labels["{}-{}-{}".format(video, gt_se_name, se_interval)]
         labels_clip_textual = labels_textual[example_id]
-
+        
         # labels_video = Variable(torch.from_numpy(labels_video).type(torch.FloatTensor))
         
         # get clip and its labels
@@ -97,10 +78,8 @@ def evaluate(
             outputs = out['final_output']
             outputs = outputs.squeeze(0)
             outputs = outputs[new_begin_se:new_end_se + 1]
-            
             # mnz
-            # classes x times
-            outputs_transpose = outputs.transpose(0, 1)
+            outputs_transpose = ll_activation(outputs.transpose(0, 1))
             
             # minizinc part
             tot_time_example = 0
@@ -111,7 +90,8 @@ def evaluate(
             mnz_gt_sol = None
             
             for se_name, mnz_model in mnz_models.items():
-                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, outputs_transpose, avg_actions_durations_f[se_name])
+                
+                mnz_problem, _ = build_problem_exp1(se_name, mnz_model, outputs_transpose)
                 
                 start_time = time.time()
                 
@@ -120,37 +100,36 @@ def evaluate(
                 end_time = time.time()
                 tot_time_example += end_time - start_time
                 sols.append(sol)
-
+                
                 if se_name == gt_se_name and mode != "Test":
                     fill_mnz_pred_exp1(mnz_gt, sol, gt_se_name)
                     mnz_gt_sol = sol[0]
-                    
+            
             tot_time_mnz += tot_time_example
-
-            outputs_act = ll_activation(outputs)
+            
+            outputs_act = outputs_transpose.transpose(0, 1)
+            
             # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            if selection_criteria == "max_avg":
-                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs_act)
-            elif selection_criteria == "min_loss":
-                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
-            third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
-
+            
+            best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
+            
             fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
             
             if mode != "Test":
                 labels_clip = mnz_gt
                 labels_clip_textual = mnz_gt_sol
-                
-            example_loss = loss(outputs, labels_clip)
+
+            # example_loss = loss(outputs, labels_clip)
+            example_loss = loss(outputs, torch.argmax(labels_clip, 1))
             
             tot_loss += example_loss
             print("--- ({} calls to mnz) -- tot_time = {:.2f} - avg_time = {:.2f} \n".format(
                 num_mnz_models, tot_time_example, tot_time_example / num_mnz_models))
             
             for sol in sols: print(sol)
-            print("\nbest_sol {}".format(third_layer_action_pred + "-" + predicted_se_name))
-            print("Ground Thruth: {}".format(third_layer_action_gt + "-{}--".format(gt_se_name) + str(labels_clip_textual)))
+            print("\n best_sol {}".format(predicted_se_name))
+            print("Ground Thruth: {}".format(labels_clip_textual))
             
             outputs = mnz_pred.reshape(-1, len(classes_names))
             
@@ -163,20 +142,17 @@ def evaluate(
             if epochs_predictions is not None:
                 epochs_predictions["epoch"].append(epoch)
                 epochs_predictions["video"].append(video)
-                epochs_predictions["gt_se_names"].append(third_layer_action_gt + "-" + gt_se_name)
-                epochs_predictions["pred_se_names"].append(third_layer_action_pred + "-" + predicted_se_name)
+                epochs_predictions["gt_se_names"].append(gt_se_name)
+                epochs_predictions["pred_se_names"].append(predicted_se_name)
                 epochs_predictions["se_interval"].append(se_interval)
                 epochs_predictions["ground_truth"].append(labels_clip)
                 epochs_predictions["outputs_act"].append(outputs_act.cpu().data.numpy())
                 epochs_predictions["predictions"].append(mnz_pred)
             
-            se_predictions = np.zeros((outputs.shape[0], num_events))
+            se_predictions = np.zeros((outputs.shape[0], num_mnz_models))
             se_predictions[:, se_labels[predicted_se_name]] = 1
-            se_predictions[:, se_labels[third_layer_action_pred]] = 1
-            se_gt = np.zeros((outputs.shape[0], num_events))
+            se_gt = np.zeros((outputs.shape[0], num_mnz_models))
             se_gt[:, se_labels[gt_se_name]] = 1
-            se_gt[:, se_labels[third_layer_action_gt]] = 1
-            
             actions_predictions.extend(np.concatenate((outputs, se_predictions), axis=1))
             actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
     
@@ -230,13 +206,14 @@ def evaluate(
     return np.nanmean(actions_avg_precision_score)
 
 
-def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models):
-    
+def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset,
+                   mnz_models):
     # training info
     run_id = cfg_train["run_id"]
     use_cuda = cfg_train["use_cuda"]
     num_epochs = cfg_train["num_epochs"]
-
+    save_epochs = cfg_train["save_epochs"]
+    
     # last layer activation
     ll_activation_name = cfg_train["ll_activation"]
     ll_activation = None
@@ -244,7 +221,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         ll_activation = nn.Softmax(0)
     elif ll_activation_name == "sigmoid":
         ll_activation = nn.Sigmoid()
-
+    
     # loss function
     loss_name = cfg_train["loss"]
     loss = None
@@ -252,9 +229,8 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         loss = nn.CrossEntropyLoss(reduction="mean")
     elif loss_name == "BCE":
         loss = nn.BCEWithLogitsLoss(reduction="mean")
-
-    selection_criteria = cfg_train["selection_criteria"]
-    save_epochs = cfg_train["save_epochs"]
+    
+    selection_criteria = "min_loss"
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
@@ -263,35 +239,33 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
     classes_names_abb = cfg_train["classes_names_abb"]
-    avg_actions_durations_f = cfg_train["avg_actions_durations_f"]
     structured_events = cfg_train["structured_events"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
-    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(
-        run_id, num_epochs, batch_size, learning_rate, weight_decay, optimizer)
-    
+    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id, num_epochs, batch_size, learning_rate,
+                                                              weight_decay, optimizer)
     saved_models_dir += train_info
     os.makedirs(saved_models_dir, exist_ok=True)
-
+    
     epochs_predictions = {
         "train":
             {
-                "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
+                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [], "ground_truth": [],
                 "outputs_act": [], "predictions": []
             },
         "val":
             {
-                "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
+                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [], "ground_truth": [],
                 "outputs_act": [], "predictions": []
             },
         "test":
             {
-                "epoch": [], "video": [], "gt_se_names": [],  "pred_se_names": [], "se_interval": [], "ground_truth": [],
+                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [], "ground_truth": [],
                 "outputs_act": [], "predictions": []
             }
     }
-
+    
     # to save metrics during training
     writer_train = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "train/")
     writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
@@ -304,7 +278,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     
     features_train = convert_to_float_tensor(features_train)
     features_test = convert_to_float_tensor(features_test)
-
+    
     labels_train = get_labels(se_train, cfg_train)
     labels_train_textual = get_textual_label_from_tensor(labels_train, classes_names_abb)
     labels_val = get_labels(se_val, cfg_train)
@@ -317,26 +291,20 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     num_training_examples = len(se_train)
 
     # fmap_score = evaluate(
-    #     5, "Train", se_train, features_train, labels_train, labels_train_textual, nn_model, bceWLL, num_clips,
-    #     mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, None, None, None
+    #     -1, "Validation", se_val[:5], features_train, labels_val, labels_val_textual, nn_model, loss,
+    #     ll_activation, selection_criteria, num_clips, mnz_models, structured_events, use_cuda, classes_names,
+    #     classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
     # )
-    # breakpoint()
-    # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, bceWLL, num_clips,
-    #     mnz_models,
-    #     structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary,
-    #     epochs_predictions["val"]
-    # )
-    # breakpoint()
+    
     optimizer.zero_grad()
     rng = random.Random(cfg_train["seed"])
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
         nn_model.train()
-
+        
         rng.shuffle(se_train)
-
+        
         tot_time_mnz = 0.
         epoch_loss = 0.
         batch_loss = 0.
@@ -359,55 +327,39 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             out = nn_model(features_clip.unsqueeze(0))
             
             outputs = out['final_output'][0]
-
             # mnz
-            outputs_transpose = ll_activation(outputs.transpose(0, 1))
-
+            outputs_act = ll_activation(outputs.transpose(0, 1))
+            
             # minizinc part
             tot_time_example = 0
             
-            sols = []
-            third_layer_action_gt, models_to_check = set_third_layer_action(se_name)
+            mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], outputs_act)
             
-            for model_to_check in models_to_check:
-
-                mnz_problem, _ = build_problem_exp1(
-                    model_to_check, mnz_models[model_to_check], outputs_transpose,
-                    avg_actions_durations_f[model_to_check]
-                )
-                
-                start_time = time.time()
-                sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
-                end_time = time.time()
-                sols.append(sol)
-                
-                tot_time_example += end_time - start_time
-
+            start_time = time.time()
+            sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+            end_time = time.time()
+            tot_time_example += end_time - start_time
+            
             tot_time_mnz += tot_time_example
-
-            outputs_act = ll_activation(outputs)
             
-            # get best solution
             mnz_pred = torch.zeros(outputs.shape)
-            if selection_criteria == "max_avg":
-                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs_act)
-            elif selection_criteria == "min_loss":
-                best_sol, predicted_se_name, _ = get_best_sol(sols, selection_criteria, outputs, loss)
             
-            third_layer_action_pred, _ = set_third_layer_action(predicted_se_name)
-            fill_mnz_pred_exp1(mnz_pred, best_sol, predicted_se_name)
+            fill_mnz_pred_exp1(mnz_pred, sol, se_name)
+            
+            print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
 
-            example_loss = loss(outputs, mnz_pred)
+            # example_loss = loss(outputs, mnz_pred)
+            example_loss = loss(outputs, torch.argmax(mnz_pred, 1))
             batch_loss += example_loss
             
             example_loss.backward()
-
-            for sol in sols: print(sol)
-            print("MNZ max sol: {}".format(str(best_sol)))
+            
+            print("MNZ sol: {}".format(str(sol)))
             print("Ground Thruth: {}".format(labels_clip_textual))
             
             print(
-                "\nEpoch {} - example {}/{} ---- loss = {:.4f}\n".format(epoch, index + 1, num_training_examples, example_loss))
+                "\nEpoch {} - example {}/{} ---- loss = {:.4f}\n".format(epoch, index + 1, num_training_examples,
+                                                                         example_loss))
             
             # batch update
             if (index + 1) % batch_size == 0:
@@ -416,17 +368,16 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
                 batch_loss = 0.
                 optimizer.step()
                 optimizer.zero_grad()
-
+            
             labels_clip = labels_train[example_id]
             epochs_predictions["train"]["epoch"].append(epoch)
             epochs_predictions["train"]["video"].append(video)
-            epochs_predictions["train"]["gt_se_names"].append(third_layer_action_gt + "-" + se_name)
-            epochs_predictions["train"]["pred_se_names"].append(third_layer_action_pred + "-" + predicted_se_name)
+            epochs_predictions["train"]["gt_se_names"].append(se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
             epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
             epochs_predictions["train"]["predictions"].append(mnz_pred.cpu().detach().numpy())
-
+        
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}-- TIME MNZ {:.2f}\n".format(
             epoch, epoch_loss, end_time_epoch - start_time_epoch, tot_time_mnz))
@@ -434,21 +385,22 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss, ll_activation,
-            selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+            epoch, "Validation", se_val, features_train, labels_val, labels_val_textual, nn_model, loss,
+            ll_activation, selection_criteria, num_clips, mnz_models, structured_events, use_cuda, classes_names,
+            classes_names_abb, writer_val, brief_summary, epochs_predictions["val"]
         )
         
         if fmap_score > max_fmap_score:
             best_model_ep = epoch
             max_fmap_score = fmap_score
-            
+        
         state = {
             "epoch": epoch,
             "state_dict": nn_model.state_dict(),
             "optimizer": optimizer.state_dict()
         }
         torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
-
+    
     best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
     print("Loading model " + best_model_path)
     
@@ -457,17 +409,18 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
         state = torch.load(best_model_path)
     else:
         state = torch.load(best_model_path, map_location=torch.device('cpu'))
-
+    
     nn_model.load_state_dict(state["state_dict"])
-
+    
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model, loss, ll_activation,
-        selection_criteria, num_clips, mnz_models, structured_events, avg_actions_durations_f, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        best_model_ep, "Test", se_test, features_test, labels_test, labels_test_textual, nn_model,
+        loss, ll_activation, selection_criteria, num_clips, mnz_models, structured_events, use_cuda, classes_names,
+        classes_names_abb, None, brief_summary, epochs_predictions["test"]
     )
-
+    
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
         pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
-
+    
     brief_summary.close()
     print(fmap_score)
     print(best_model_ep)
