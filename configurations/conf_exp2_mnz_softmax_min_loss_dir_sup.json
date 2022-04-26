@@ -18,7 +18,6 @@
   "num_clips": 128,
   "dim_of_features": 2048,
   "classes": 12,
-  "structured_events_direct_sup": {},
   "structured_events": {
     "HighJump": 0,
     "LongJump": 1,
@@ -27,6 +26,10 @@
     "ThrowDiscus": 4,
     "Shotput": 5,
     "JavelinThrow": 6
+  },
+  "structured_events_direct_sup": {
+    "LongJump": 10,
+    "ThrowDiscus": 10
   },
   "classes_names": [
     "Run", "Jump", "Fall",

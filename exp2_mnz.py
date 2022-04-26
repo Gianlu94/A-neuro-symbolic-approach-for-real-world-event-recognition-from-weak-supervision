@@ -11,7 +11,7 @@ import pymzn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_labels, get_avg_labels
+from dataset import get_labels, get_avg_labels, get_examples_direct_supervision
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
 
@@ -240,6 +240,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     classes_names = cfg_train["classes_names"]
     classes_names_abb = cfg_train["classes_names_abb"]
     structured_events = cfg_train["structured_events"]
+    se_direct_sup = cfg_train["structured_events_direct_sup"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
@@ -279,6 +280,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     features_train = convert_to_float_tensor(features_train)
     features_test = convert_to_float_tensor(features_test)
     
+    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup)
     labels_train = get_labels(se_train, cfg_train)
     labels_train_textual = get_textual_label_from_tensor(labels_train, classes_names_abb)
     labels_val = get_labels(se_val, cfg_train)
@@ -333,28 +335,33 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             # minizinc part
             tot_time_example = 0
             
-            mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], outputs_act)
+            gt_train = None
+
+            if not examples_dir_sup or example_train not in examples_dir_sup:
+                mnz_problem, _ = build_problem_exp1(se_name, mnz_models[se_name], outputs_act)
+                
+                start_time = time.time()
+                sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+                end_time = time.time()
+                tot_time_example += end_time - start_time
+                
+                tot_time_mnz += tot_time_example
+                
+                gt_train = torch.zeros(outputs.shape)
+                
+                fill_mnz_pred_exp1(gt_train, sol, se_name)
             
-            start_time = time.time()
-            sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
-            end_time = time.time()
-            tot_time_example += end_time - start_time
-            
-            tot_time_mnz += tot_time_example
-            
-            mnz_pred = torch.zeros(outputs.shape)
-            
-            fill_mnz_pred_exp1(mnz_pred, sol, se_name)
-            
-            print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
+                print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
+                print("MNZ sol: {}".format(str(sol)))
+            else:
+                gt_train = labels_train[example_id]
 
             # example_loss = loss(outputs, mnz_pred)
-            example_loss = loss(outputs, torch.argmax(mnz_pred, 1))
+            example_loss = loss(outputs, torch.argmax(gt_train, 1))
             batch_loss += example_loss
             
             example_loss.backward()
             
-            print("MNZ sol: {}".format(str(sol)))
             print("Ground Thruth: {}".format(labels_clip_textual))
             
             print(
@@ -376,7 +383,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
             epochs_predictions["train"]["se_interval"].append(se_interval)
             epochs_predictions["train"]["ground_truth"].append(labels_clip.cpu().detach().numpy())
             epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
-            epochs_predictions["train"]["predictions"].append(mnz_pred.cpu().detach().numpy())
+            epochs_predictions["train"]["predictions"].append(gt_train.cpu().detach().numpy())
         
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}-- TIME MNZ {:.2f}\n".format(

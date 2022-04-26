@@ -352,6 +352,28 @@ def get_se_labels(se_list, cfg_train):
 
     return labels
 
+
+def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
+    # get examples for which we are going to use direct supervision
+    
+    examples_dir_sup = []
+    # if not empty
+    if se_dir_sup:
+        se_to_filter = list(se_dir_sup.keys())
+        examples_per_se = {}
+    
+        rng = random.Random(seed)
+        for example in se_list:
+            example_class = example[1]
+            if example_class in se_to_filter:
+                examples_per_se.setdefault(example_class, []).append(example)
+        
+        for se, examples in examples_per_se.items():
+            num_sample = se_dir_sup[se]
+            examples_dir_sup.extend(rng.sample(examples, num_sample))
+
+    return examples_dir_sup
+
     
     
 
