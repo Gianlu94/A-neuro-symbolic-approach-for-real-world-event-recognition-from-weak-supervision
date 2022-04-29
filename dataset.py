@@ -354,6 +354,7 @@ def get_se_labels(se_list, cfg_train):
 
 
 def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
+    ds_perc = [i / 100 for i in range(10, 110, 10)]
     # get examples for which we are going to use direct supervision
     
     examples_dir_sup = []
@@ -361,19 +362,39 @@ def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
     if se_dir_sup:
         se_to_filter = list(se_dir_sup.keys())
         examples_per_se = {}
-    
-        rng = random.Random(seed)
+        
         for example in se_list:
             example_class = example[1]
             if example_class in se_to_filter:
                 examples_per_se.setdefault(example_class, []).append(example)
         
-        for se, examples in examples_per_se.items():
-            num_sample = se_dir_sup[se]
-            examples_dir_sup.extend(rng.sample(examples, num_sample))
+        rng = random.Random(seed)
+        
+        prev_num_of_examples = {se: 0 for se, _ in examples_per_se.items()}
 
+        # for each perc
+        for current_perc_of_examples in ds_perc:
+            for se, examples in examples_per_se.items():
+                
+                num_examples = len(examples)
+                # for each percentage calculate the additional examples to take with respect to the previous percentage
+                num_examples_to_take = round(num_examples * current_perc_of_examples) - prev_num_of_examples[se]
+                examples_to_take = rng.sample(examples, num_examples_to_take)
+                examples_dir_sup.extend(examples_to_take)
+
+                for example_to_remove in examples_to_take:
+                    examples.remove(example_to_remove)
+                
+                prev_num_of_examples[se] = num_examples_to_take
+
+            # get the percentage of direct supervision to use
+            perc_of_examples = se_dir_sup[se]
+            
+            # reached the perc of examples
+            if current_perc_of_examples == perc_of_examples:
+                break
+       
     return examples_dir_sup
-
     
     
 
