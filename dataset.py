@@ -369,23 +369,25 @@ def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
                 examples_per_se.setdefault(example_class, []).append(example)
         
         rng = random.Random(seed)
-        
+
+        num_examples_for_se = {se: len(examples) for se, examples in examples_per_se.items()}
         prev_num_of_examples = {se: 0 for se, _ in examples_per_se.items()}
 
         # for each perc
         for current_perc_of_examples in ds_perc:
             for se, examples in examples_per_se.items():
-                
-                num_examples = len(examples)
+                num_examples = num_examples_for_se[se]
+
                 # for each percentage calculate the additional examples to take with respect to the previous percentage
                 num_examples_to_take = round(num_examples * current_perc_of_examples) - prev_num_of_examples[se]
+                print("Total {} - Take {} out of {} -- perc{:.2}".format(num_examples, num_examples_to_take, len(examples), current_perc_of_examples))
                 examples_to_take = rng.sample(examples, num_examples_to_take)
                 examples_dir_sup.extend(examples_to_take)
 
                 for example_to_remove in examples_to_take:
                     examples.remove(example_to_remove)
                 
-                prev_num_of_examples[se] = num_examples_to_take
+                prev_num_of_examples[se] += num_examples_to_take
 
             # get the percentage of direct supervision to use
             perc_of_examples = se_dir_sup[se]
@@ -393,7 +395,7 @@ def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
             # reached the perc of examples
             if current_perc_of_examples == perc_of_examples:
                 break
-       
+    
     return examples_dir_sup
     
     
