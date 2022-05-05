@@ -71,7 +71,10 @@ data_dec = {}
 
 def get_labels(se_list, cfg_train):
     dec_labels = {}
-    
+    classes = cfg_train["classes"]
+    if isinstance(classes, list):
+        classes = classes[1]
+        
     for example in se_list:
         video, se_name, se_interval = example[0], example[1], example[4]
         
@@ -208,7 +211,8 @@ def get_labels(se_list, cfg_train):
             intervals_events.pop(0)
         
         label_key = "{}-{}-{}".format(video, se_name, se_interval)
-        dec_labels[label_key] = torch.zeros((cfg_train["classes"], se_interval[1] - se_interval[0] + 1))
+    
+        dec_labels[label_key] = torch.zeros((classes, se_interval[1] - se_interval[0] + 1))
         
         dec_labels[label_key][rows, columns] = 1
         dec_labels[label_key] = dec_labels[label_key].transpose(0, 1)
@@ -332,6 +336,8 @@ def get_avg_labels(se_list, cfg_train):
 def get_se_labels(se_list, cfg_train):
     structured_events = cfg_train["structured_events"]
     num_se = cfg_train["classes"]
+    if isinstance(num_se, list):
+        num_se = num_se[0]
     labels = {}
     
     for example in se_list:

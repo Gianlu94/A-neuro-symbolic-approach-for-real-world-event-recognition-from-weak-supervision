@@ -10,30 +10,8 @@ from torch import nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_labels, get_avg_labels
+from dataset import get_examples_direct_supervision, get_labels, get_se_labels
 from utils import convert_to_float_tensor
-
-
-def set_third_layer_action(second_layer_action, avg_labels_clip):
-    filtered_avg_labels_clip = {}
-    
-    if second_layer_action == "HighJump" or second_layer_action == "LongJump" or second_layer_action == "PoleVault":
-        third_layer_action = "StructuredJump"
-        
-        filtered_avg_labels_clip["HighJump"] = avg_labels_clip["HighJump"]
-        filtered_avg_labels_clip["LongJump"] = avg_labels_clip["LongJump"]
-        filtered_avg_labels_clip["PoleVault"] = avg_labels_clip["PoleVault"]
-        
-    elif second_layer_action == "HammerThrow" or second_layer_action == "ThrowDiscus" or second_layer_action == "Shotput" or \
-            second_layer_action == "JavelinThrow":
-        third_layer_action = "StructuredThrow"
-
-        filtered_avg_labels_clip["HammerThrow"] = avg_labels_clip["HammerThrow"]
-        filtered_avg_labels_clip["ThrowDiscus"] = avg_labels_clip["ThrowDiscus"]
-        filtered_avg_labels_clip["Shotput"] = avg_labels_clip["Shotput"]
-        filtered_avg_labels_clip["JavelinThrow"] = avg_labels_clip["JavelinThrow"]
-
-    return third_layer_action, filtered_avg_labels_clip
 
 
 def get_se_prediction(outputs, avg_labels_clip, loss):
@@ -70,24 +48,25 @@ def set_outputs_for_metrics_computation(pred_se_name, outputs):
     elif pred_se_name == "JavelinThrow":
         tmp_outputs[:, 1:11] = 0
 
-    new_outputs[:, torch.argmax(tmp_outputs, 1)] = 1
+    new_outputs[range(new_outputs.shape[0]), torch.argmax(tmp_outputs, 1)] = 1
 
     return new_outputs
 
     
 def evaluate(
-        epoch, mode, se_list, features, labels, avg_labels, nn_model, loss, ll_activation, num_clips, se_labels,
-        use_cuda, classes_names, writer, brief_summary, epochs_predictions
+        epoch, mode, se_list, features, labels_ae, labels_se, nn_model, loss, ll_activation, ae_se_corr, num_clips,
+        se_labels, use_cuda, classes_names, writer, brief_summary, epochs_predictions
 ):
     nn_model.eval()
     num_examples = len(se_list)
     se_names = list(se_labels.keys())
     num_se = len(se_names)
-    # num events of second and third layer of the hierarchy
-    num_events = len(se_labels.keys())
     
-    actions_predictions = []
-    actions_ground_truth = []
+    events_tmp_predictions = []
+    events_tmp_ground_truth = []
+
+    se_predictions = []
+    se_gt = []
     
     #tot_loss = 0.
     print("\nStarting evaluation")
@@ -95,9 +74,9 @@ def evaluate(
     
     for i, example in enumerate(se_list):
         
-        video, gt_second_layer_action, duration, num_features, se_interval, _ = example
+        video, gt_se_name, duration, num_features, se_interval, _ = example
         
-        print("\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_second_layer_action, (se_interval), i + 1, num_examples),
+        print("\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_se_name, (se_interval), i + 1, num_examples),
               end="")
 
         new_begin_se = 0
@@ -107,14 +86,13 @@ def evaluate(
         features_video = np.array(features[video])
         features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
         
-        example_id = "{}-{}-{}".format(video, gt_second_layer_action, se_interval)
+        example_id = "{}-{}-{}".format(video, gt_se_name, se_interval)
         
         # get clip and its labels
         features_clip = features_video[se_interval[0]:se_interval[1] + 1]
         
-        labels_clip = labels[example_id]
-        avg_labels_clip = avg_labels[example_id]
-        avg_labels_clip_true_se = avg_labels_clip[gt_second_layer_action]
+        labels_ae_clip = labels_ae[example_id]
+        labels_se_clip = labels_se[example_id]
         
         # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
         with torch.no_grad():
@@ -134,102 +112,132 @@ def evaluate(
             
             # get the output from the network
             out = nn_model(features_clip)
-            outputs = out['final_output']
-            outputs = outputs.squeeze(0)
-            outputs = outputs[new_begin_se:new_end_se + 1]
-
-            # get gt third layer action and filtered avg_labels_clip
-            gt_third_layer_action, avg_labels_clip = set_third_layer_action(gt_second_layer_action, avg_labels_clip)
-            # from the third action predict the second layer action
-            pred_second_layer_action = get_se_prediction(outputs, avg_labels_clip, loss)
-            # get pred third layer action
-            pred_third_layer_action, _ = set_third_layer_action(pred_second_layer_action, avg_labels_clip)
-
-            avg_labels_clip_pred_se = avg_labels_clip[pred_second_layer_action]
             
+            outputs_ae = out['final_output'].squeeze(0)[:(new_end_se+1)]
+            outputs_se = out["final_output_se"].squeeze(0)[:(new_end_se+1)]
+
+            pred_se_name = get_se_prediction(outputs_se, labels_se_clip, loss)
+            outputs_act_ae = ll_activation(outputs_ae)
+            outputs_act_se = ll_activation(outputs_se)
+            if not ae_se_corr:
+                new_outputs_ae = set_outputs_for_metrics_computation("", outputs_act_ae)
+            else:
+                new_outputs_ae = set_outputs_for_metrics_computation(pred_se_name, outputs_act_ae)
+
             #example_loss = loss(outputs, avg_labels_clip_pred_se)
             #tot_loss += example_loss
             
-            outputs_act = ll_activation(outputs)
-            labels_clip = labels_clip.cpu().detach().data.numpy()
-            avg_labels_clip_true_se = avg_labels_clip_true_se.cpu().detach().data.numpy()
-            avg_labels_clip_pred_se = avg_labels_clip_pred_se.cpu().detach().data.numpy()
-            
-            assert len(outputs) == len(avg_labels_clip_pred_se)
+            labels_ae_clip = labels_ae_clip.cpu().detach().data.numpy()
+            outputs_ae = outputs_ae.cpu().detach().numpy()
+            outputs_se = outputs_se.cpu().detach().numpy()
+            outputs_act_ae = outputs_act_ae.cpu().detach().numpy()
+            outputs_act_se = outputs_act_se.cpu().detach().numpy()
             
             epochs_predictions["epoch"].append(epoch)
             epochs_predictions["video"].append(video)
-            epochs_predictions["gt_se_names"].append("{}-{}".format(gt_third_layer_action, gt_second_layer_action))
-            epochs_predictions["pred_se_names"].append("{}-{}".format(pred_third_layer_action, pred_second_layer_action))
+            epochs_predictions["gt_se_names"].append(gt_se_name)
+            epochs_predictions["pred_se_names"].append(pred_se_name)
             epochs_predictions["se_interval"].append(se_interval)
-            epochs_predictions["original_ground_truth"].append(labels_clip)
-            epochs_predictions["ground_truth"].append(avg_labels_clip_true_se)
-            epochs_predictions["ground_truth_avg_pred_se"].append(avg_labels_clip_pred_se)
-            epochs_predictions["outputs_act"].append(outputs_act.cpu().detach().numpy())
-            new_outputs = set_outputs_for_metrics_computation(pred_second_layer_action, outputs_act)
-            epochs_predictions["predictions"].append(new_outputs.cpu().detach().data.numpy())
+            epochs_predictions["ground_truth"].append(labels_ae_clip)
+            epochs_predictions["raw_outputs_ae"].append(outputs_ae)
+            epochs_predictions["raw_outputs_se"].append(outputs_se)
+            epochs_predictions["outputs_act_ae"].append(outputs_act_ae)
+            epochs_predictions["outputs_act_se"].append(outputs_act_se)
+            epochs_predictions["predictions"].append(new_outputs_ae.cpu().detach().data.numpy())
             
-            se_predictions = np.zeros((new_outputs.shape[0], num_events))
+            se_tmp_predictions = np.zeros((new_outputs_ae.shape[0], num_se))
             
-            se_predictions[:, se_labels[pred_second_layer_action]] = 1
-            se_predictions[:, se_labels[pred_third_layer_action]] = 1
-            se_gt = np.zeros((outputs.shape[0], num_events))
-            se_gt[:, se_labels[gt_second_layer_action]] = 1
-            se_gt[:, se_labels[gt_third_layer_action]] = 1
+            se_tmp_predictions[:, se_labels[pred_se_name]] = 1
+            se_tmp_gt = np.zeros((outputs_se.shape[0], num_se))
+            se_tmp_gt[:, se_labels[gt_se_name]] = 1
             
-            actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
-            if mode == "Test":
-                actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
-            else:
-                actions_ground_truth.extend(np.concatenate((avg_labels_clip_true_se, se_gt), axis=1))
+            events_tmp_predictions.extend(np.concatenate((new_outputs_ae, se_tmp_predictions), axis=1))
+            events_tmp_ground_truth.extend(np.concatenate((labels_ae_clip, se_tmp_gt), axis=1))
+            se_predictions.append(pred_se_name)
+            se_gt.append(gt_se_name)
     
-    actions_ground_truth = np.array(actions_ground_truth)
-    actions_predictions = np.array(actions_predictions)
+    events_tmp_ground_truth = np.array(events_tmp_ground_truth)
+    events_tmp_predictions = np.array(events_tmp_predictions)
+
+    se_gt = np.array(se_gt)
+    se_predictions = np.array(se_predictions)
     
     # compute metrics
-    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
-    
-    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
-    
-    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
+    events_tmp_avg_precision_score = average_precision_score(events_tmp_ground_truth, events_tmp_predictions, average=None)
+    events_tmp_results = precision_recall_fscore_support(events_tmp_ground_truth, events_tmp_predictions, average=None)
+    events_tmp_f1_scores, events_tmp_precision, events_tmp_recall = events_tmp_results[2], events_tmp_results[0], events_tmp_results[1]
+
+    #se_avg_precision_score = average_precision_score(se_gt, se_predictions, average=None)
+    se_results = precision_recall_fscore_support(se_gt, se_predictions, average=None)
+    se_f1_scores, se_precision, se_recall = se_results[2], se_results[0], se_results[1]
     
     end_time_ev = time.time()
     
     metrics_to_print = """
         \nTIME: {:.2f}
-        {} -- Epoch: {}, Precision per class: {}
-        {} -- Epoch: {}, Recall per class: {}
-        {} -- Epoch: {}, F1-Score per class: {}
-        {} -- Epoch: {}, Average Precision: {}
-        {} -- Epoch: {}, F1-Score: {:.4f}, mAP: {:.4f}
+    {} -- Epoch: {}, Tmp Precision per class: {}
+    {} -- Epoch: {}, Tmp Recall per class: {}
+    {} -- Epoch: {}, Tmp F1-Score per class: {}
+    {} -- Epoch: {}, Tmp Average Precision: {}
+    {} -- Epoch: {}, Tmp F1-Score: {:.4f}, Tmp mAP: {:.4f}
     """.format(
         end_time_ev - start_time_ev,
         #mode, epoch, tot_loss.item() / num_examples,
-        mode, epoch, actions_precision,
-        mode, epoch, actions_recall,
-        mode, epoch, str(actions_f1_scores),
-        mode, epoch, str(actions_avg_precision_score),
-        mode, epoch, np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
+        mode, epoch, events_tmp_precision,
+        mode, epoch, events_tmp_recall,
+        mode, epoch, str(events_tmp_f1_scores),
+        mode, epoch, str(events_tmp_avg_precision_score),
+        mode, epoch, np.nanmean(events_tmp_f1_scores), np.nanmean(events_tmp_avg_precision_score)
     )
-
+    
+    metrics_to_print += """
+    ---------------------------------------------------
+        {} -- Epoch: {}, Precision per se class: {}
+        {} -- Epoch: {}, Recall per se class: {}
+        {} -- Epoch: {}, F1-Score per se class: {}
+        {} -- Epoch: {}, F1-Score: {:.4f}
+        """.format(
+        # mode, epoch, tot_loss.item() / num_examples,
+        mode, epoch, se_precision,
+        mode, epoch, se_recall,
+        mode, epoch, se_f1_scores,
+        #mode, epoch, se_avg_precision_score,
+        mode, epoch, np.nanmean(se_f1_scores),
+    )
+    
     print(metrics_to_print, flush=True)
     brief_summary.write(metrics_to_print)
     
     if writer is not None:
         for i, class_name in enumerate(classes_names + se_names):
             # writer.add_scalar("Loss {} ".format(class_name), tot_loss.item()/num_se, epoch)
-            writer.add_scalar("F1 Score {} ".format(class_name), actions_f1_scores[i], epoch)
-            writer.add_scalar("Precision {} ".format(class_name), actions_precision[i], epoch)
-            writer.add_scalar("Recall {} ".format(class_name), actions_recall[i], epoch)
+            writer.add_scalar("Tmp F1 Score {} ".format(class_name), events_tmp_f1_scores[i], epoch)
+            writer.add_scalar("Tmp Precision {} ".format(class_name), events_tmp_precision[i], epoch)
+            writer.add_scalar("Tmp Recall {} ".format(class_name), events_tmp_recall[i], epoch)
             # writer.add_scalar("AP {} ".format(class_name), actions_avg_precision_score[i], epoch)
         
         #writer.add_scalar('Loss', tot_loss.item() / num_examples, epoch)
-        writer.add_scalar('Avg F1 Score', np.nanmean(actions_f1_scores), epoch)
-        writer.add_scalar('Avg Precision', np.nanmean(actions_precision), epoch)
-        writer.add_scalar('Avg Recall', np.nanmean(actions_recall), epoch)
-        writer.add_scalar('Avg AP', np.nanmean(actions_avg_precision_score), epoch)
+        writer.add_scalar('Tmp Avg F1 Score', np.nanmean(events_tmp_f1_scores), epoch)
+        writer.add_scalar('Tmp Avg Precision', np.nanmean(events_tmp_precision), epoch)
+        writer.add_scalar('Tmp Avg Recall', np.nanmean(events_tmp_recall), epoch)
+        writer.add_scalar('Tmp Avg AP', np.nanmean(events_tmp_avg_precision_score), epoch)
+
+
+    if writer is not None:
+        for i, class_name in enumerate(se_names):
+            # writer.add_scalar("Loss {} ".format(class_name), tot_loss.item()/num_se, epoch)
+            writer.add_scalar("Se -- F1 Score {} ".format(class_name), se_f1_scores[i], epoch)
+            writer.add_scalar("Se -- Precision {} ".format(class_name), se_precision[i], epoch)
+            writer.add_scalar("Se -- Recall {} ".format(class_name), se_recall[i], epoch)
+            # writer.add_scalar("AP {} ".format(class_name), actions_avg_precision_score[i], epoch)
+
+        # writer.add_scalar('Loss', tot_loss.item() / num_examples, epoch)
+        writer.add_scalar('Se F1 Score', np.nanmean(se_f1_scores), epoch)
+        writer.add_scalar('Se Precision', np.nanmean(se_precision), epoch)
+        writer.add_scalar('Se Recall', np.nanmean(se_recall), epoch)
+        #writer.add_scalar('Se AP', np.nanmean(se_avg_precision_score), epoch)
     
-    return np.nanmean(actions_avg_precision_score)
+    return np.nanmean(events_tmp_avg_precision_score)
 
 
 def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset):
@@ -239,16 +247,20 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     use_cuda = cfg_train["use_cuda"]
     num_epochs = cfg_train["num_epochs"]
     save_epochs = cfg_train["save_epochs"]
+    
     # last layer activation
     ll_activation_name = cfg_train["ll_activation"]
     ll_activation = None
     if ll_activation_name == "softmax":
         ll_activation = nn.Softmax(1)
+        
     # loss function
     loss_name = cfg_train["loss"]
     loss = None
     if loss_name == "CE":
         loss = nn.CrossEntropyLoss(reduction="mean")
+    
+    ae_se_corr = cfg_train["ae_se_corr"]
     batch_size = cfg_train["batch_size"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
@@ -257,6 +269,7 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     num_clips = cfg_train["num_clips"]
     classes_names = cfg_train["classes_names"]
     structured_events = cfg_train["structured_events"]
+    se_direct_sup = cfg_train["structured_events_direct_sup"]
     
     saved_models_dir = cfg_dataset.saved_models_dir
     # signature
@@ -269,20 +282,20 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
         "train":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "original_ground_truth": [], "ground_truth": [], "ground_truth_avg_pred_se": [], "outputs_act": [],
-                "predictions": []
+                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+                "outputs_act_ae": [], "outputs_act_se": [], "predictions": []
             },
         "val":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "original_ground_truth": [], "ground_truth": [], "ground_truth_avg_pred_se": [], "outputs_act": [],
-                "predictions": []
+                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+                "outputs_act_ae": [], "outputs_act_se": [], "predictions": []
             },
         "test":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "original_ground_truth": [], "ground_truth": [], "ground_truth_avg_pred_se": [], "outputs_act": [],
-                "predictions": []
+                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+                "outputs_act_ae": [], "outputs_act_se": [], "predictions": []
             },
     }
 
@@ -302,14 +315,15 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    labels_train = get_labels(se_train, cfg_train)
-    avg_labels_train = get_avg_labels(se_train, cfg_train)
+    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup, cfg_train["seed"])
+    labels_ae_train = get_labels(se_train, cfg_train)
+    labels_se_train = get_se_labels(se_train, cfg_train)
+
+    labels_ae_val = get_labels(se_val, cfg_train)
+    labels_se_val = get_se_labels(se_val, cfg_train)
     
-    labels_val = get_labels(se_val, cfg_train)
-    avg_labels_val = get_avg_labels(se_val, cfg_train)
- 
-    labels_test = get_labels(se_test, cfg_train)
-    avg_labels_test = get_avg_labels(se_test, cfg_train)
+    labels_ae_test = get_labels(se_test, cfg_train)
+    labels_se_test = get_se_labels(se_test, cfg_train)
     
     max_fmap_score = 0.
     
@@ -319,9 +333,11 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
 
     rng = random.Random(cfg_train["seed"])
     # fmap_score = evaluate(
-    #     -1, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation, num_clips,
-    #     structured_events, use_cuda, classes_names, writer_val, brief_summary, epochs_predictions["val"]
+    #     -1, "Validation", se_val[:3], features_train, labels_aa_val, labels_se_val, nn_model, loss, ll_activation,
+    #     num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+    #     epochs_predictions["val"]
     # )
+    
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
@@ -334,33 +350,38 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
         for index, example_train in enumerate(se_train):
             print(example_train)
             # get video, duration, num_features, se name and interval where the se is happening
-            video, se_name, duration, num_features, se_interval = \
+            video, gt_se_name, duration, num_features, se_interval = \
                 example_train[0], example_train[1], example_train[2], example_train[3], example_train[4]
             features_video = features_train[video]
             
             # get clip and its labels
             features_clip = features_video[se_interval[0]:se_interval[1] + 1]
-            id_label = "{}-{}-{}".format(video, se_name, se_interval)
-            avg_labels_clip = avg_labels_train[id_label]
-            avg_labels_clip_true_se = avg_labels_clip[se_name]
+            id_label = "{}-{}-{}".format(video, gt_se_name, se_interval)
+            
 
             # get the output from the network
             out = nn_model(features_clip.unsqueeze(0))
-
-            outputs = out['final_output'][0]
             
-            # get gt third layer action and filtered avg_labels_clip
-            gt_third_layer_action, avg_labels_clip = set_third_layer_action(se_name, avg_labels_clip)
-            # from the third action predict the second layer action
-            pred_second_layer_action = get_se_prediction(outputs, avg_labels_clip, loss)
-            # get pred third layer action
-            pred_third_layer_action, _ = set_third_layer_action(pred_second_layer_action, avg_labels_clip)
+            # labels for ae and se
+            labels_clip_ae = None
+            labels_clip_se = labels_se_train[id_label][gt_se_name]
             
-            # get labels for the pred second layer action
-            avg_labels_clip_pred_se = avg_labels_clip[pred_second_layer_action]
-
-            example_loss = loss(outputs, avg_labels_clip_pred_se) #labels_train[id_label])
-
+            # network outputs for ae and se
+            outputs_se = out['final_output_se'][0]
+            outputs_ae = None
+            
+            # use dataset grount truth
+            if example_train in examples_dir_sup:
+                labels_clip_ae = labels_ae_train[id_label]
+                outputs_ae = out['final_output'][0]
+            
+            if outputs_ae is None:
+                # loss on structured events
+                example_loss = loss(outputs_se, labels_clip_se) #labels_train[id_label])
+            else:
+                # sum of losses of atomic and strctured events
+                example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
+                
             batch_loss += example_loss
             
             example_loss.backward()
@@ -376,21 +397,22 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
                 optimizer.step()
                 optimizer.zero_grad()
 
-            
-            labels_clip = labels_train[id_label]
 
-            outputs_act = ll_activation(outputs)
+            # outputs_act = ll_activation(outputs)
             epochs_predictions["train"]["epoch"].append(epoch)
             epochs_predictions["train"]["video"].append(video)
-            epochs_predictions["train"]["gt_se_names"].append("{}-{}".format(gt_third_layer_action, se_name))
-            epochs_predictions["train"]["pred_se_names"].append("{}-{}".format(pred_third_layer_action, pred_second_layer_action))
+            epochs_predictions["train"]["gt_se_names"].append(gt_se_name)
             epochs_predictions["train"]["se_interval"].append(se_interval)
-            epochs_predictions["train"]["original_ground_truth"].append(labels_clip.cpu().detach().numpy())
-            epochs_predictions["train"]["ground_truth"].append(avg_labels_clip_true_se.cpu().detach().numpy())
-            epochs_predictions["train"]["ground_truth_avg_pred_se"].append(avg_labels_clip_pred_se.cpu().detach().numpy())
-            epochs_predictions["train"]["outputs_act"].append(outputs_act.cpu().detach().numpy())
-            new_outputs = set_outputs_for_metrics_computation(pred_second_layer_action, outputs_act)
-            epochs_predictions["train"]["predictions"].append(new_outputs)
+            epochs_predictions["train"]["ground_truth"].append(labels_ae_train[id_label].cpu().detach().numpy())
+            if outputs_ae is not None:
+                epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae.cpu().detach().numpy())
+                epochs_predictions["train"]["outputs_act_ae"].append(ll_activation(outputs_ae).cpu().detach().numpy())
+            else:
+                epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae)
+                epochs_predictions["train"]["outputs_act_ae"].append(outputs_ae)
+
+            epochs_predictions["train"]["raw_outputs_se"].append(outputs_se.cpu().detach().numpy())
+            epochs_predictions["train"]["outputs_act_se"].append(ll_activation(outputs_se).cpu().detach().numpy())
             
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
@@ -398,8 +420,8 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
         
         fmap_score = evaluate(
-            epoch, "Validation", se_val, features_train, labels_val, avg_labels_val, nn_model, loss, ll_activation,
-            num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+            epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
+            ae_se_corr, num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
             epochs_predictions["val"]
         )
         
@@ -426,8 +448,8 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     nn_model.load_state_dict(state["state_dict"])
 
     fmap_score = evaluate(
-        best_model_ep, "Test", se_test, features_test, labels_test, avg_labels_test, nn_model, loss, ll_activation, num_clips,
-        structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
+        best_model_ep, "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
+        ae_se_corr, num_clips, structured_events, use_cuda, classes_names, None, brief_summary, epochs_predictions["test"]
     )
 
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
@@ -436,162 +458,3 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     brief_summary.close()
     print(fmap_score)
     print(best_model_ep)
-
-
-def evaluate_test_set_with_proportion_rule_exp2(nn_model, se_test, features_test, cfg_train, cfg_dataset):
-    exp_info = "/{}-{}/".format(cfg_train["run_id"], cfg_train["exp"])
-    logs_dir = cfg_dataset.tf_logs_dir + exp_info
-    os.makedirs(logs_dir, exist_ok=True)
-    brief_summary = open("{}/brief_summary.txt".format(logs_dir), "w")
-    
-    nn_model.eval()
-    structured_events = cfg_train["structured_events"]
-    num_examples = len(se_test)
-    se_names = list(structured_events.keys())
-    num_se = len(se_names)
-    # num events of second and third layer of the hierarchy
-    num_events = len(structured_events.keys())
-    
-    labels_test = get_labels(se_test, cfg_train)
-    avg_labels_test = get_avg_labels(se_test, cfg_train)
-    
-    # last layer activation
-    ll_activation_name = cfg_train["ll_activation"]
-    ll_activation = None
-    if ll_activation_name == "softmax":
-        ll_activation = nn.Softmax(1)
-    # loss function
-    loss_name = cfg_train["loss"]
-    loss = None
-    if loss_name == "CE":
-        loss = nn.CrossEntropyLoss(reduction="mean")
-    
-    num_clips = cfg_train["num_clips"]
-    use_cuda = cfg_train["use_cuda"]
-    
-    test_predictions = {
-        "video": [], "se_interval": [], "gt_se_names": [], "pred_se_names": [], "ground_truth": [], "outputs_act": [], "predictions": []}
-    actions_predictions = []
-    actions_ground_truth = []
-    
-    #tot_loss = 0.
-    print("\nStarting evaluation")
-    start_time_ev = time.time()
-    
-    for i, example in enumerate(se_test):
-        
-        video, gt_second_layer_action, duration, num_features, se_interval, _ = example
-        
-        print(
-            "\nProcessing example [{}, {}, {}]  {}/{}  ".format(video, gt_second_layer_action, (se_interval), i + 1, num_examples),
-            end="")
-        
-        new_begin_se = 0
-        new_end_se = se_interval[1] - se_interval[0]
-        
-        # get features for the current video
-        features_video = np.array(features_test[video])
-        features_video = Variable(torch.from_numpy(features_video).type(torch.FloatTensor))
-        
-        example_id = "{}-{}-{}".format(video, gt_second_layer_action, se_interval)
-        
-        # get clip and its labels
-        features_clip = features_video[se_interval[0]:se_interval[1] + 1]
-        
-        labels_clip = labels_test[example_id]
-        avg_labels_clip = avg_labels_test[example_id]
-        
-        # labels_clip = labels_video[interval_cut_f[0]:interval_cut_f[1] + 1]
-        with torch.no_grad():
-            if num_clips > 0:
-                if len(features_clip) < num_clips:
-                    # padding
-                    features_to_append = torch.zeros(num_clips - len(features_clip) % num_clips, features_clip.shape[1])
-                    features_clip = torch.cat((features_clip, features_to_append), 0)
-                assert len(features_clip) > 0
-            else:
-                features_clip = torch.unsqueeze(features_clip, 0)
-                labels_clip = torch.unsqueeze(labels_clip, 0)
-            
-            if use_cuda:
-                features_clip = features_clip.cuda()
-                labels_clip = labels_clip.cuda()
-            
-            # get the output from the network
-            out = nn_model(features_clip)
-            outputs = out['final_output']
-            outputs = outputs.squeeze(0)
-            outputs = outputs[new_begin_se:new_end_se + 1]
-            
-            # get gt third layer action and filtered avg_labels_clip
-            gt_third_layer_action, avg_labels_clip = set_third_layer_action(gt_second_layer_action, avg_labels_clip)
-            # from the third action predict the second layer action
-            pred_second_layer_action = get_se_prediction(outputs, avg_labels_clip, loss)
-            # get pred third layer action
-            pred_third_layer_action, _ = set_third_layer_action(pred_second_layer_action, avg_labels_clip)
-
-            # example_loss = loss(outputs, labels_clip)  # labels_clip)
-            # tot_loss += example_loss
-
-            outputs_act = ll_activation(outputs)
-            labels_clip = labels_clip.cpu().data.numpy()
-            
-            assert len(outputs) == len(labels_clip)
-            
-            test_predictions["video"].append(video)
-            test_predictions["se_interval"].append(se_interval)
-            test_predictions["gt_se_names"].append("{}-{}".format(gt_third_layer_action, gt_second_layer_action))
-            test_predictions["pred_se_names"].append("{}-{}".format(pred_third_layer_action, pred_second_layer_action))
-            
-            test_predictions["ground_truth"].append(labels_clip)
-            test_predictions["outputs_act"].append(outputs_act.data.cpu().detach().numpy())
-            
-            new_outputs = avg_labels_clip[pred_second_layer_action].data.cpu().detach().numpy()
-            test_predictions["predictions"].append(new_outputs)
-
-            se_predictions = np.zeros((new_outputs.shape[0], num_events))
-
-            se_predictions[:, structured_events[pred_second_layer_action]] = 1
-            se_predictions[:, structured_events[pred_third_layer_action]] = 1
-            se_gt = np.zeros((outputs.shape[0], num_events))
-            se_gt[:, structured_events[gt_second_layer_action]] = 1
-            se_gt[:, structured_events[gt_third_layer_action]] = 1
-
-            actions_predictions.extend(np.concatenate((new_outputs, se_predictions), axis=1))
-            actions_ground_truth.extend(np.concatenate((labels_clip, se_gt), axis=1))
-   
-    actions_ground_truth = np.array(actions_ground_truth)
-    actions_predictions = np.array(actions_predictions)
-
-    # compute metrics
-    actions_avg_precision_score = average_precision_score(actions_ground_truth, actions_predictions, average=None)
-    
-    actions_results = precision_recall_fscore_support(actions_ground_truth, actions_predictions, average=None)
-    
-    actions_f1_scores, actions_precision, actions_recall = actions_results[2], actions_results[0], actions_results[1]
-    
-    end_time_ev = time.time()
-    
-    metrics_to_print = """
-                        \nTIME: {:.2f}
-                        Test -- Precision per class: {}
-                        Test -- Recall per class: {}
-                        Test -- F1-Score per class: {}
-                        Test -- Average Precision: {}
-                        Test -- F1-Score: {:.4f}, mAP: {:.4f}
-                    """.format(
-        end_time_ev - start_time_ev,
-        actions_precision,
-        actions_recall,
-        str(actions_f1_scores),
-        str(actions_avg_precision_score),
-        np.nanmean(actions_f1_scores), np.nanmean(actions_avg_precision_score)
-    )
-    
-    print(metrics_to_print, flush=True)
-    brief_summary.write(metrics_to_print)
-    brief_summary.close()
-    
-    with open("{}/test_predictions.pickle".format(logs_dir), "wb") as tp_file:
-        pickle.dump(test_predictions, tp_file, protocol=pickle.HIGHEST_PROTOCOL)
-

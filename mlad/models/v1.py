@@ -22,14 +22,14 @@ class PositionalEncoding(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
-
+    
     def forward(self, x):
         x = x + self.pe[:, :x.size(1), :]
         return self.dropout(x)
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, dropout = 0.2, activation='relu'):
+    def __init__(self, d_model, dropout=0.2, activation='relu'):
         super().__init__()
         self.d_model = d_model
         self.q_linear = nn.Linear(d_model, d_model)
@@ -38,9 +38,9 @@ class MultiHeadAttention(nn.Module):
         self.out = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
         self.activation = _get_activation_fn(activation)
-
+    
     def attention(self, q, k, v, mask=None, dropout=None):
-        scores = torch.matmul(q, k.transpose(-2, -1)) /  math.sqrt(self.d_model)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_model)
         if mask is not None:
             mask = mask.unsqueeze(1)
             scores = scores.masked_fill(mask == 0, -1e9)
@@ -49,7 +49,7 @@ class MultiHeadAttention(nn.Module):
             scores = dropout(scores)
         output = torch.matmul(scores, v)
         return output, scores
-
+    
     def forward(self, q, k, v):
         bs, n, c, f = q.size(0), q.size(1), q.size(2), q.size(3)
         # perform linear operation and split into h heads
@@ -57,12 +57,12 @@ class MultiHeadAttention(nn.Module):
         q = self.q_linear(q).view(bs, n, c, self.d_model)
         v = self.v_linear(v).view(bs, n, c, self.d_model)
         # transpose to get dimensions bs * h * sl * d_model
-        k = k.transpose(1,2)
-        q = q.transpose(1,2)
-        v = v.transpose(1,2)
+        k = k.transpose(1, 2)
+        q = q.transpose(1, 2)
+        v = v.transpose(1, 2)
         # calculate attention using function we will define next
         scores, attention = self.attention(q, k, v, None, self.dropout)
-        output = self.activation(self.out(scores)).transpose(1,2)
+        output = self.activation(self.out(scores)).transpose(1, 2)
         return output, (attention)
 
 
@@ -88,12 +88,12 @@ class TransformerEncoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.activation = _get_activation_fn(activation)
-
+    
     def __setstate__(self, state):
         if 'activation' not in state:
             state['activation'] = F.relu
         super(TransformerEncoderLayer, self).__setstate__(state)
-
+    
     def forward(self, src):
         src2, weights = self.self_attn(src, src, src)
         src = src + self.dropout1(src2)
@@ -107,34 +107,57 @@ class TransformerEncoderLayer(nn.Module):
 class VideoTransformer(nn.Module):
     def __init__(self, num_clips, num_classes, feature_dim, hidden_dim, num_layers):
         super(VideoTransformer, self).__init__()
-        self.num_classes = num_classes
+        if isinstance(num_classes, list):
+            # two heads
+            self.num_classes_se = num_classes[0]
+            self.num_classes_ae = num_classes[1]
+        else:
+            # one head
+            self.num_classes_se = 0
+            self.num_classes_ae = num_classes
+        
+        self.num_classes = self.num_classes_ae + self.num_classes_se
         self.num_clips = num_clips
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.positional_encoding = PositionalEncoding(feature_dim, max_len=num_clips)
-        self.feature_expansion = nn.ModuleList([nn.Sequential(nn.Linear(feature_dim, self.hidden_dim), nn.ReLU()) for i in range(self.num_classes)])
+        self.feature_expansion = nn.ModuleList(
+            [nn.Sequential(nn.Linear(feature_dim, self.hidden_dim), nn.ReLU()) for i in range(self.num_classes)])
         self.initial_classifiers = nn.ModuleList([nn.Linear(self.hidden_dim, 1) for i in range(self.num_classes)])
-        self.encoder_layers1 = nn.ModuleList([TransformerEncoderLayer(hidden_dim=self.hidden_dim, dim_feedforward=self.hidden_dim) for i in range(self.num_layers)])
-        self.encoder_layers2 = nn.ModuleList([TransformerEncoderLayer(hidden_dim=self.hidden_dim, dim_feedforward=self.hidden_dim) for i in range(self.num_layers)])
+        self.encoder_layers1 = nn.ModuleList(
+            [TransformerEncoderLayer(hidden_dim=self.hidden_dim, dim_feedforward=self.hidden_dim) for i in
+             range(self.num_layers)])
+        self.encoder_layers2 = nn.ModuleList(
+            [TransformerEncoderLayer(hidden_dim=self.hidden_dim, dim_feedforward=self.hidden_dim) for i in
+             range(self.num_layers)])
         self.final_classifiers = nn.ModuleList([nn.Linear(self.hidden_dim, 1) for i in range(self.num_classes)])
-        self.alpha = nn.Parameter(torch.tensor([0.0]*self.num_layers)) #torch.tensor([0.0]*self.num_layers)
+        self.alpha = nn.Parameter(torch.tensor([0.0] * self.num_layers))  # torch.tensor([0.0]*self.num_layers)
         self.sigmoid = nn.Sigmoid()
-
+    
     def forward(self, features):
         activations = {}
         features = self.positional_encoding(features)
         features = [self.feature_expansion[i](features) for i in range(self.num_classes)]
         expanded_features = torch.stack(features, dim=0).permute(1, 2, 0, 3)
-        initial_outputs = [self.initial_classifiers[i](expanded_features[:,:,i,:]) for i in range(self.num_classes)]
+        
+        # initial outputs ae
+        initial_outputs = [self.initial_classifiers[i](expanded_features[:, :, i, :]) for i in range(self.num_classes)]
         initial_outputs = torch.stack(initial_outputs, dim=2).squeeze(-1)
         activations['init_output'] = initial_outputs
+        
         features = expanded_features
         for i in range(self.num_layers):
             encoder_output1 = self.encoder_layers1[i](features)[0]
-            encoder_output2 = self.encoder_layers2[i](features.transpose(1,2))[0].transpose(1,2)
-            features = (self.sigmoid(self.alpha[i]) * encoder_output1) + ((1 - self.sigmoid(self.alpha[i])) *  encoder_output2)
-        final_outputs = [self.final_classifiers[i](features[:,:,i,:]) for i in range(self.num_classes)]
+            encoder_output2 = self.encoder_layers2[i](features.transpose(1, 2))[0].transpose(1, 2)
+            features = (self.sigmoid(self.alpha[i]) * encoder_output1) + (
+                        (1 - self.sigmoid(self.alpha[i])) * encoder_output2)
+        # final outputs ae
+        final_outputs = [self.final_classifiers[i](features[:, :, i, :]) for i in range(self.num_classes)]
         final_outputs = torch.stack(final_outputs, dim=2).squeeze(-1)
-        activations['final_output'] = final_outputs
+        
+        activations['final_output'] = final_outputs[:, :, :self.num_classes_ae]
+        # head for se
+        if self.num_classes_se > 0:
+            activations['final_output_se'] = final_outputs[:, :, self.num_classes_ae:]
         return activations
 
