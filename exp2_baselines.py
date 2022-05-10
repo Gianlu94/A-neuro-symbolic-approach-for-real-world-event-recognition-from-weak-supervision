@@ -592,6 +592,8 @@ def evaluate_with_mnz(
                     epochs_predictions["predictions_from_nn"].append(torch.argmax(outputs_act_ae, 1))
             else:
                 epochs_predictions["predictions"].append("unsat")
+                if "predictions_from_nn" in epochs_predictions:
+                    epochs_predictions["predictions_from_nn"].append("unsat")
             
             outputs_act_ae = outputs_act_ae.cpu().detach().numpy()
             epochs_predictions["outputs_act_ae"].append(outputs_act_ae)
