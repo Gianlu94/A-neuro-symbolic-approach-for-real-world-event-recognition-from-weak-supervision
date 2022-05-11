@@ -1,5 +1,5 @@
 {
-  "exp": "2-two_heads_nmnz",
+  "exp": "2-two_heads_nmnz_comb_sup",
   "seed": 0,
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
