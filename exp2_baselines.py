@@ -318,7 +318,7 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup, cfg_train["seed"])
+    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup)
     labels_ae_train = get_labels(se_train, cfg_train)
     labels_se_train = get_se_labels(se_train, cfg_train)
 
@@ -334,7 +334,7 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     
     optimizer.zero_grad()
 
-    rng = random.Random(cfg_train["seed"])
+    rng = random.Random(0)
     # fmap_score = evaluate_with_mnz(
     #     best_model_ep, "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
     #     num_clips, structured_events, use_cuda, classes_names, None, brief_summary,

@@ -48,7 +48,7 @@ def filter_data(se_list, se_name):
     return filtered_list
 
 
-def get_validation_set(all_se_train, se_names, ratio, seed):
+def get_validation_set(all_se_train, se_names, ratio, seed=0):
     train_split = []
     val_split = []
     

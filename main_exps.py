@@ -81,8 +81,7 @@ if __name__ == '__main__':
     se_test = load_data("test", path_to_filtered_data, cfg_dataset.annotations_file, features_test)
 
     se_train, se_val = get_validation_set(
-        se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"], seed
-    )
+        se_train, list(cfg_train["structured_events"].keys()), cfg_train["val_ratio"])
 
     if exp_type == "mnz":
         path_to_mnz = cfg_train["path_to_mnz_models"]

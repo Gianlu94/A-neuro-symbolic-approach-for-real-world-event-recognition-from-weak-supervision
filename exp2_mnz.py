@@ -300,7 +300,7 @@ def train_exp2_mnz(se_train, se_val, se_test, features_train, features_test, nn_
     # )
     
     optimizer.zero_grad()
-    rng = random.Random(cfg_train["seed"])
+    rng = random.Random(0)
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
@@ -518,7 +518,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     # se_train = se_train[:5]
     # se_val = [se_val[1]] + [se_val[-1]]
     # se_test = [se_test[1]] + [se_test[-1]]
-    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup, cfg_train["seed"])
+    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup)
     labels_ae_train = get_labels(se_train, cfg_train)
     labels_se_train = get_se_labels(se_train, cfg_train)
     
@@ -534,7 +534,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     
     optimizer.zero_grad()
     
-    rng = random.Random(cfg_train["seed"])
+    rng = random.Random(0)
     
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
@@ -776,7 +776,7 @@ def train_exp2_two_heads_nmnz_mnz_sup(se_train, se_val, se_test, features_train,
     
     optimizer.zero_grad()
     
-    rng = random.Random(cfg_train["seed"])
+    rng = random.Random(0)
     
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
