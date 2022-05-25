@@ -12,6 +12,7 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from tensorboardX import SummaryWriter
 
 from exp2_baselines import evaluate_with_mnz
+from exp2_baselines import evaluate as evaluate_wo_mnz
 from dataset import get_labels, get_avg_labels, get_examples_direct_supervision, get_se_labels
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
@@ -440,6 +441,9 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     use_cuda = cfg_train["use_cuda"]
     num_epochs = cfg_train["num_epochs"]
     save_epochs = cfg_train["save_epochs"]
+    start_mnz_at_epoch = 1
+    if "start_mnz_at_epoch" in cfg_train:
+        start_mnz_at_epoch = cfg_train["start_mnz_at_epoch"]
     
     # last layer activation
     ll_activation_name = cfg_train["ll_activation"]
@@ -578,23 +582,26 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
                 # use dataset ground truth
                 labels_clip_ae = labels_ae_train[id_label]
             else:
-                # use solution provided by the solver
-                mnz_problem, _ = build_problem_exp1(gt_se_name, mnz_models[gt_se_name], outputs_act_ae)
-
-                start_time = time.time()
-                sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
-                end_time = time.time()
-                tot_time_example += end_time - start_time
-
-                tot_time_mnz += tot_time_example
-
-                labels_clip_ae = torch.zeros(outputs_ae.shape)
-
-                fill_mnz_pred_exp1(labels_clip_ae, sol, gt_se_name)
-
-                print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
-                print("MNZ sol: {}".format(str(sol)))
-            
+                # use mnz
+                if epoch >= start_mnz_at_epoch:
+                    # use solution provided by the solver
+                    mnz_problem, _ = build_problem_exp1(gt_se_name, mnz_models[gt_se_name], outputs_act_ae)
+    
+                    start_time = time.time()
+                    sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+                    end_time = time.time()
+                    tot_time_example += end_time - start_time
+    
+                    tot_time_mnz += tot_time_example
+    
+                    labels_clip_ae = torch.zeros(outputs_ae.shape)
+    
+                    fill_mnz_pred_exp1(labels_clip_ae, sol, gt_se_name)
+    
+                    print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
+                    print("MNZ sol: {}".format(str(sol)))
+                else:
+                    continue
             
             example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
             
@@ -633,11 +640,18 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
         
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
 
-        fmap_score = evaluate_with_mnz(
-            epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
-            num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
-            epochs_predictions["val"], path_to_mnz_models
-        )
+        if epoch >= start_mnz_at_epoch:
+            fmap_score = evaluate_with_mnz(
+                epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
+                num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+                epochs_predictions["val"], path_to_mnz_models
+            )
+        else:
+            fmap_score = evaluate_wo_mnz(
+                epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
+                ae_se_corr, num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+                epochs_predictions["val"]
+            )
         
         if fmap_score > max_fmap_score:
             best_model_ep = epoch
@@ -649,7 +663,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
             "optimizer": optimizer.state_dict()
         }
         torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
-    
+
     best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
     print("Loading model " + best_model_path)
     
