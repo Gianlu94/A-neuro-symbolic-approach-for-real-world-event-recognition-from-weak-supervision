@@ -4,7 +4,7 @@
   "run_id": 0,
   "path_to_filtered_data": "./datasets/Multi-THUMOS/filtered_se/",
   "path_to_mnz_models": "./minizinc/models/exp2-1000_var/",
-  "mnz_after_epoch": 1,
+  "start_mnz_at_epoch": 2,
   "val_ratio": 0.1,
   "num_epochs": 20,
   "save_epochs": 1,
