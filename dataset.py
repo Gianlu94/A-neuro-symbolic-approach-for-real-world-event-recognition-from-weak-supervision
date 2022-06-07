@@ -481,10 +481,10 @@ def get_se_batches_method_2(examples_per_se, num_batches, batch_size, seed):
     tot_examples_to_pick_per_se = sum(examples_to_pick_per_se)
     
     if tot_examples_to_pick_per_se > batch_size:
-        idx_to_dec = rng.randint(0, num_se)
+        idx_to_dec = rng.randint(0, num_se-1)
         examples_to_pick_per_se[idx_to_dec] -= 1
     elif tot_examples_to_pick_per_se < batch_size:
-        idx_to_inc = rng.randint(0, num_se)
+        idx_to_inc = rng.randint(0, num_se-1)
         examples_to_pick_per_se[idx_to_inc] += 1
         
     examples_per_se_tmp = copy.deepcopy(examples_per_se)
