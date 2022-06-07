@@ -10,7 +10,8 @@ from torch import nn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from dataset import get_examples_direct_supervision, get_labels, get_se_labels
+from dataset import get_examples_direct_supervision, get_examples_per_se, get_labels, get_se_labels, \
+    get_se_batches_method_1, get_se_batches_method_2
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1
 import pymzn
 from pymzn import Status
@@ -265,6 +266,7 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     
     ae_se_corr = cfg_train["ae_se_corr"]
     batch_size = cfg_train["batch_size"]
+    batch_method = cfg_train["batch_method"]
     num_batches = len(se_train) // batch_size
     learning_rate = cfg_train["learning_rate"]
     weight_decay = cfg_train["weight_decay"]
@@ -344,82 +346,91 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
     #     pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
     # breakpoint()
     
+    examples_per_se, prop_examples_per_se = get_examples_per_se(se_train)
+
     for epoch in range(1, num_epochs + 1):
         start_time_epoch = time.time()
         print("\n--- START EPOCH {}\n".format(epoch))
         nn_model.train()
-        rng.shuffle(se_train)
-        
+       
         epoch_loss = 0.
         batch_loss = 0.
-        
-        for index, example_train in enumerate(se_train):
-            print(example_train)
-            # get video, duration, num_features, se name and interval where the se is happening
-            video, gt_se_name, duration, num_features, se_interval = \
-                example_train[0], example_train[1], example_train[2], example_train[3], example_train[4]
-            features_video = features_train[video]
-            
-            # get clip and its labels
-            features_clip = features_video[se_interval[0]:se_interval[1] + 1]
-            id_label = "{}-{}-{}".format(video, gt_se_name, se_interval)
-            
 
-            # get the output from the network
-            out = nn_model(features_clip.unsqueeze(0))
-            
-            # labels for ae and se
-            labels_clip_ae = None
-            labels_clip_se = labels_se_train[id_label][gt_se_name]
-            
-            # network outputs for ae and se
-            outputs_se = out['final_output_se'][0]
-            outputs_ae = None
-            
-            # use dataset grount truth
-            if example_train in examples_dir_sup:
-                labels_clip_ae = labels_ae_train[id_label]
-                outputs_ae = out['final_output'][0]
-            
-            if outputs_ae is None:
-                # loss on structured events
-                example_loss = loss(outputs_se, labels_clip_se) #labels_train[id_label])
-            else:
-                # sum of losses of atomic and strctured events
-                example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
+        if batch_method == 1:
+            se_batches = get_se_batches_method_1(examples_per_se, num_training_examples // batch_size, batch_size, epoch)
+        elif batch_method == 2:
+            se_batches = get_se_batches_method_2(examples_per_se, num_training_examples // batch_size, batch_size, epoch)
+        
+        for idx_batch, batch in enumerate(se_batches):
+            for idx_example, example_batch in enumerate(batch):
+                print(example_batch)
+                # get video, duration, num_features, se name and interval where the se is happening
+                video, gt_se_name, duration, num_features, se_interval = \
+                    example_batch[0], example_batch[1], example_batch[2], example_batch[3], example_batch[4]
+                features_video = features_train[video]
                 
-            batch_loss += example_loss
+                # get clip and its labels
+                features_clip = features_video[se_interval[0]:se_interval[1] + 1]
+                id_label = "{}-{}-{}".format(video, gt_se_name, se_interval)
+                
+    
+                # get the output from the network
+                out = nn_model(features_clip.unsqueeze(0))
+                
+                # labels for ae and se
+                labels_clip_ae = None
+                labels_clip_se = labels_se_train[id_label][gt_se_name]
+                
+                # network outputs for ae and se
+                outputs_se = out['final_output_se'][0]
+                outputs_ae = None
+                
+                # use dataset grount truth
+                if example_batch in examples_dir_sup:
+                    labels_clip_ae = labels_ae_train[id_label]
+                    outputs_ae = out['final_output'][0]
+                
+                if outputs_ae is None:
+                    # loss on structured events
+                    example_loss = loss(outputs_se, labels_clip_se) #labels_train[id_label])
+                else:
+                    # sum of losses of atomic and strctured events
+                    example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
+                    
+                batch_loss += example_loss
+                
+                example_loss.backward()
+                
+                print(
+                    "\nEpoch {} - Batch {} - Example {}/{} ---- loss = {:.4f}\n".format(epoch, idx_batch, idx_example + 1,
+                                                                                        batch_size, example_loss))
+
+                # outputs_act = ll_activation(outputs)
+                epochs_predictions["train"]["epoch"].append(epoch)
+                epochs_predictions["train"]["video"].append(video)
+                epochs_predictions["train"]["gt_se_names"].append(gt_se_name)
+                epochs_predictions["train"]["se_interval"].append(se_interval)
+                epochs_predictions["train"]["ground_truth"].append(labels_ae_train[id_label].cpu().detach().numpy())
+                if outputs_ae is not None:
+                    epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae.cpu().detach().numpy())
+                    epochs_predictions["train"]["outputs_act_ae"].append(
+                        ll_activation(outputs_ae).cpu().detach().numpy())
+                else:
+                    epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae)
+                    epochs_predictions["train"]["outputs_act_ae"].append(outputs_ae)
+
+                epochs_predictions["train"]["raw_outputs_se"].append(outputs_se.cpu().detach().numpy())
+                epochs_predictions["train"]["outputs_act_se"].append(ll_activation(outputs_se).cpu().detach().numpy())
             
-            example_loss.backward()
-            
-            print(
-                "\nEpoch {} - example {}/{} ---- loss = {:.4f}\n".format(epoch, index + 1, num_training_examples, example_loss))
             
             # batch update
-            if (index + 1) % batch_size == 0:
-                print("\nEpoch {} BATCH ---- loss = {}\n".format(epoch, batch_loss))
-                epoch_loss += batch_loss / num_batches
-                batch_loss = 0.
-                optimizer.step()
-                optimizer.zero_grad()
-
-
-            # outputs_act = ll_activation(outputs)
-            epochs_predictions["train"]["epoch"].append(epoch)
-            epochs_predictions["train"]["video"].append(video)
-            epochs_predictions["train"]["gt_se_names"].append(gt_se_name)
-            epochs_predictions["train"]["se_interval"].append(se_interval)
-            epochs_predictions["train"]["ground_truth"].append(labels_ae_train[id_label].cpu().detach().numpy())
-            if outputs_ae is not None:
-                epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae.cpu().detach().numpy())
-                epochs_predictions["train"]["outputs_act_ae"].append(ll_activation(outputs_ae).cpu().detach().numpy())
-            else:
-                epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae)
-                epochs_predictions["train"]["outputs_act_ae"].append(outputs_ae)
-
-            epochs_predictions["train"]["raw_outputs_se"].append(outputs_se.cpu().detach().numpy())
-            epochs_predictions["train"]["outputs_act_se"].append(ll_activation(outputs_se).cpu().detach().numpy())
-            
+            print("\nEpoch {} BATCH ---- loss = {}\n".format(epoch, batch_loss))
+            epoch_loss += batch_loss / num_batches
+            batch_loss = 0.
+            optimizer.step()
+            optimizer.zero_grad()
+    
+    
         end_time_epoch = time.time()
         print("--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
         

@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import random
@@ -404,6 +405,118 @@ def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
     
     return examples_dir_sup
     
+
+def get_examples_per_se(se_train):
+    tot_examples = len(se_train)
+    # keep track of examples per se as well as their proportion
+    examples_per_se = {}
+    prop_examples_per_se = {}
     
+    for example in se_train:
+        se_name = example[1]
+        
+        if se_name not in examples_per_se:
+            examples_per_se[se_name] = []
+            prop_examples_per_se[se_name] = 0
+        
+        examples_per_se[se_name].append(example)
+        prop_examples_per_se[se_name] += 1
+        
+    for se_name, num_examples_se in prop_examples_per_se.items():
+        prop_examples_per_se[se_name] = num_examples_se / tot_examples
+        
+    return examples_per_se, prop_examples_per_se
+
+
+def get_se_batches_method_1(examples_per_se, num_batches, batch_size, seed):
+    # batch with at least one example for class remaining ones randomly selected
+    
+    batches = []
+    rng = random.Random(seed)
+    se_names = list(examples_per_se.keys())
+    
+    examples_per_se_tmp = copy.deepcopy(examples_per_se)
+    for _ in range(num_batches):
+        batch = []
+        
+        # at least one example of each se
+        for se_name in se_names:
+            # get number of remaining examples
+            num_remaining_examples_per_se = len(examples_per_se_tmp[se_name])
+            # if 0 go ahead
+            if num_remaining_examples_per_se == 0:
+                continue
+            else:
+                idx_example = rng.randint(0, len(examples_per_se_tmp[se_name]) - 1)
+                batch.append(examples_per_se_tmp[se_name][idx_example])
+                examples_per_se_tmp[se_name].pop(idx_example)
+
+        num_of_pick_randomly = batch_size - len(batch)
+        
+        for _ in range(num_of_pick_randomly):
+            random_se_name = rng.choice(se_names)
+            while len(examples_per_se_tmp[random_se_name]) == 0:
+                random_se_name = rng.choice(se_names)
+
+            idx_example = rng.randint(0, len(examples_per_se_tmp[random_se_name]) - 1)
+            print("{}---{}".format(idx_example, len(examples_per_se_tmp[random_se_name]) - 1))
+            batch.append(examples_per_se_tmp[random_se_name][idx_example])
+            examples_per_se_tmp[random_se_name].pop(idx_example)
+
+        rng.shuffle(batch)
+        batches.append(batch)
+    
+    return batches
+
+
+def get_se_batches_method_2(examples_per_se, num_batches, batch_size, seed):
+    # batch with an equal number of example for class (same example may appear more than one time)
+    
+    batches = []
+    rng = random.Random(seed)
+    se_names = list(examples_per_se.keys())
+    num_se = len(se_names)
+    
+    examples_to_pick_per_se = [round(batch_size / num_se)] * num_se
+    tot_examples_to_pick_per_se = sum(examples_to_pick_per_se)
+    
+    if tot_examples_to_pick_per_se > batch_size:
+        idx_to_dec = rng.randint(0, num_se)
+        examples_to_pick_per_se[idx_to_dec] -= 1
+    elif tot_examples_to_pick_per_se < batch_size:
+        idx_to_inc = rng.randint(0, num_se)
+        examples_to_pick_per_se[idx_to_inc] += 1
+        
+    examples_per_se_tmp = copy.deepcopy(examples_per_se)
+    
+    for _ in range(num_batches):
+        batch = []
+        
+        # take batch_size/num_se examplew for each se
+        for idx_se, se_name in enumerate(se_names):
+            for _ in range(examples_to_pick_per_se[idx_se]):
+                # get number of remaining examples
+                num_remaining_examples_per_se = len(examples_per_se_tmp[se_name])
+                
+                # if 0 refill
+                if num_remaining_examples_per_se == 0:
+                    examples_per_se_tmp[se_name] = copy.deepcopy(examples_per_se[se_name])
+                
+                # take a random example
+                idx_example = rng.randint(0, len(examples_per_se_tmp[se_name]) - 1)
+                batch.append(examples_per_se_tmp[se_name][idx_example])
+                examples_per_se_tmp[se_name].pop(idx_example)
+        
+        rng.shuffle(batch)
+        batches.append(batch)
+    
+    return batches
+        
+        
+        
+
+
+    
+
 
 
