@@ -10,7 +10,7 @@ import h5py as h5
 from mlad.configuration import build_config
 from mlad.model import build_model
 from exp1_mnz import train_exp1_mnz
-from exp2_mnz import train_exp2_mnz, train_exp2_two_heads_nmnz_combined_sup, train_exp2_two_heads_nmnz_mnz_sup
+from exp2_mnz import train_exp2_mnz, train_exp2_two_heads_nmnz_combined_sup
 from exp1_baselines import train_exp1_neural, evaluate_test_set_with_proportion_rule_exp1
 from exp2_baselines import train_exp2_neural
 
@@ -109,9 +109,6 @@ if __name__ == '__main__':
             train_exp2_neural(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset)
     elif exp_type == "two_heads_nmnz_comb_sup":
         train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset)
-    elif exp_type == "two_heads_nmnz_mnz_sup":
-        train_exp2_two_heads_nmnz_mnz_sup(se_train, se_val, se_test, features_train, features_test, nn_model,
-                                               cfg_train, cfg_dataset)
     elif exp_type == "proportion_rule_baseline":
         if exp_num == 1:
             evaluate_test_set_with_proportion_rule_exp1(nn_model, se_test, features_test, cfg_train, cfg_dataset)
