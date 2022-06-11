@@ -7,7 +7,7 @@
   "val_ratio": 0.1,
   "num_epochs": 20,
   "save_epochs": 1,
-  "batch_size": 5,
+  "batch_size": 6,
   "ll_activation": "softmax",
   "loss": "CE",
   "ae_se_corr": false,
@@ -29,13 +29,13 @@
     "JavelinThrow": 6
   },
   "structured_events_direct_sup": {
-    "HighJump": 0.9,
-    "LongJump": 0.9,
-    "PoleVault": 0.9,
-    "HammerThrow": 0.9,
-    "ThrowDiscus": 0.9,
-    "Shotput": 0.9,
-    "JavelinThrow": 0.9
+    "HighJump": 1.0,
+    "LongJump": 1.0,
+    "PoleVault": 1.0,
+    "HammerThrow": 1.0,
+    "ThrowDiscus": 1.0,
+    "Shotput": 1.0,
+    "JavelinThrow": 1.0
   },
   "classes_names": [
     "Run", "Jump", "Fall",
