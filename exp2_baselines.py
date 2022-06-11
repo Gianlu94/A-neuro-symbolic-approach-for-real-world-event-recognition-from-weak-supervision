@@ -554,7 +554,7 @@ def evaluate_with_mnz(
             mnz_pred_ae = torch.zeros(outputs_ae.shape)
 
             if sol.status == Status.UNSATISFIABLE:
-                print("*********SKIPPED EXAMPLE - GT SE {} -- PRED SE {}".format(gt_se_name, pred_se_name))
+                print("*********UNSAT - GT SE {} -- PRED SE {}".format(gt_se_name, pred_se_name))
             else:
                 fill_mnz_pred_exp1(mnz_pred_ae, sol, pred_se_name)
                 
@@ -577,7 +577,6 @@ def evaluate_with_mnz(
             epochs_predictions["raw_outputs_se"].append(outputs_se)
             epochs_predictions["outputs_act_se"].append(outputs_act_se)
             
-
             if not sol.status == Status.UNSATISFIABLE:
                 epochs_predictions["predictions"].append(mnz_pred_ae.cpu().detach().data.numpy())
                 se_tmp_predictions = np.zeros((mnz_pred_ae.shape[0], num_se))
@@ -588,12 +587,12 @@ def evaluate_with_mnz(
                 events_tmp_predictions.extend(np.concatenate((mnz_pred_ae, se_tmp_predictions), axis=1))
                 events_tmp_ground_truth.extend(np.concatenate((labels_ae_clip, se_tmp_gt), axis=1))
 
-                if "predictions_from_nn" in epochs_predictions:
-                    epochs_predictions["predictions_from_nn"].append(torch.argmax(outputs_act_ae, 1))
             else:
                 epochs_predictions["predictions"].append("unsat")
-                if "predictions_from_nn" in epochs_predictions:
-                    epochs_predictions["predictions_from_nn"].append("unsat")
+            
+            if "predictions_from_nn" in epochs_predictions:
+                network_pred = torch.argmax(outputs_act_ae, 1)
+                epochs_predictions["predictions_from_nn"].append(network_pred)
             
             outputs_act_ae = outputs_act_ae.cpu().detach().numpy()
             epochs_predictions["outputs_act_ae"].append(outputs_act_ae)
