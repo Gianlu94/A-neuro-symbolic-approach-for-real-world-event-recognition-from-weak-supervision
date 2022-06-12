@@ -380,7 +380,7 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
                 outputs_ae = None
                 
                 # use dataset ground truth
-                if example_batch.tolist() in examples_dir_sup:
+                if tuple(example_batch.tolist()) in examples_dir_sup:
                     labels_clip_ae = labels_ae_train[id_label]
                     outputs_ae = out['final_output'][0]
                 
