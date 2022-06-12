@@ -10,7 +10,7 @@ import h5py as h5
 from mlad.configuration import build_config
 from mlad.model import build_model
 from exp1_mnz import train_exp1_mnz
-from exp2_mnz import train_exp2_mnz, train_exp2_two_heads_nmnz_combined_sup
+from exp2_mnz import train_exp2_two_heads_nmnz_combined_sup
 from exp1_baselines import train_exp1_neural, evaluate_test_set_with_proportion_rule_exp1
 from exp2_baselines import train_exp2_neural
 
@@ -98,10 +98,10 @@ if __name__ == '__main__':
             train_exp1_mnz(
                 se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
             )
-        elif exp_num == 2:
-            train_exp2_mnz(
-                se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
-            )
+        # elif exp_num == 2:
+        #     train_exp2_mnz(
+        #         se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset, mnz_models
+        #     )
     elif exp_type == "neural_baseline":
         if exp_num == 1:
             train_exp1_neural(se_train, se_val, se_test, features_train, features_test, nn_model, cfg_train, cfg_dataset)

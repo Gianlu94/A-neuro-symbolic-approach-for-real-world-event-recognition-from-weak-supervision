@@ -29,13 +29,13 @@
     "JavelinThrow": 6
   },
   "structured_events_direct_sup": {
-    "HighJump": 1.0,
-    "LongJump": 1.0,
-    "PoleVault": 1.0,
-    "HammerThrow": 1.0,
-    "ThrowDiscus": 1.0,
-    "Shotput": 1.0,
-    "JavelinThrow": 1.0
+    "HighJump": 0.5,
+    "LongJump": 0.5,
+    "PoleVault": 0.5,
+    "HammerThrow": 0.5,
+    "ThrowDiscus": 0.5,
+    "Shotput": 0.5,
+    "JavelinThrow": 0.5
   },
   "classes_names": [
     "Run", "Jump", "Fall",

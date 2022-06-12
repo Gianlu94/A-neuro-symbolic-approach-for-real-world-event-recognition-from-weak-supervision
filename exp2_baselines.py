@@ -580,18 +580,17 @@ def evaluate_with_mnz(
             epochs_predictions["raw_outputs_se"].append(outputs_se)
             epochs_predictions["outputs_act_se"].append(outputs_act_se)
             
-            if not sol.status == Status.UNSATISFIABLE:
-                epochs_predictions["predictions"].append(mnz_pred_ae.cpu().detach().data.numpy())
-                se_tmp_predictions = np.zeros((mnz_pred_ae.shape[0], num_se))
-                se_tmp_predictions[:, se_labels[pred_se_name]] = 1
-                se_tmp_gt = np.zeros((mnz_pred_ae.shape[0], num_se))
-                se_tmp_gt[:, se_labels[gt_se_name]] = 1
-                
-                events_tmp_predictions.extend(np.concatenate((mnz_pred_ae, se_tmp_predictions), axis=1))
-                events_tmp_ground_truth.extend(np.concatenate((labels_ae_clip, se_tmp_gt), axis=1))
-
-            else:
-                epochs_predictions["predictions"].append("unsat")
+            if sol.status == Status.UNSATISFIABLE:
+                mnz_pred_ae[range(mnz_pred_ae.shape[0]), torch.argmax(outputs_act_ae, 1)] = 1
+            
+            epochs_predictions["predictions"].append(mnz_pred_ae.cpu().detach().data.numpy())
+            se_tmp_predictions = np.zeros((mnz_pred_ae.shape[0], num_se))
+            se_tmp_predictions[:, se_labels[pred_se_name]] = 1
+            se_tmp_gt = np.zeros((mnz_pred_ae.shape[0], num_se))
+            se_tmp_gt[:, se_labels[gt_se_name]] = 1
+            
+            events_tmp_predictions.extend(np.concatenate((mnz_pred_ae, se_tmp_predictions), axis=1))
+            events_tmp_ground_truth.extend(np.concatenate((labels_ae_clip, se_tmp_gt), axis=1))
             
             if "predictions_from_nn" in epochs_predictions:
                 network_pred = torch.argmax(outputs_act_ae, 1)
