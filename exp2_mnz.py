@@ -835,6 +835,9 @@ def train_exp2_two_heads_nmnz_combined_sup_different_batches(se_train, se_val, s
                 # minizinc part
                 tot_time_example = 0
                 
+                if not isinstance(example_batch_ae, tuple):
+                    example_batch_ae = tuple(example_batch_ae.tolist())
+                    
                 if example_batch_ae in examples_dir_sup:
                     # use dataset ground truth
                     labels_clip_ae = labels_ae_train[id_label_ae]
