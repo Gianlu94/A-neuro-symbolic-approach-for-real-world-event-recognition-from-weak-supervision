@@ -11,7 +11,7 @@ import pymzn
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support
 from tensorboardX import SummaryWriter
 
-from exp2_baselines import evaluate_with_mnz
+from exp2_baselines import evaluate_with_mnz, evaluate as evaluate_neural
 from dataset import get_batches, get_labels, get_avg_labels, get_examples_direct_supervision, get_se_labels
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
@@ -487,13 +487,25 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
                 "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
                 "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
             },
-        "val":
+        "val_neural":
+            {
+                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
+                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+                "outputs_act_ae": [], "outputs_act_se": [], "predictions": []
+            },
+        "val_mnz":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
                 "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
                 "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
             },
-        "test":
+        "test_neural":
+            {
+                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
+                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+                "outputs_act_ae": [], "outputs_act_se": [], "predictions": []
+            },
+        "test_mnz":
             {
                 "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
                 "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
@@ -505,7 +517,9 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     writer_train = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "train/")
     writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
     brief_summary = open("{}/brief_summary.txt".format(cfg_dataset.tf_logs_dir + train_info), "w")
-    best_model_ep = 0
+    # keep tracks of best model for inference without (pos. 0) and with mnz (pos. 1)
+    best_models_ep = [0, 0]
+    max_fmap_score = [0, 0]
     
     if optimizer == "Adam":
         print("Using ADAM optimizer")
@@ -526,8 +540,6 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     
     labels_ae_test = get_labels(se_test, cfg_train)
     labels_se_test = get_se_labels(se_test, cfg_train)
-    
-    max_fmap_score = 0.
     
     num_training_examples = len(se_train)
     
@@ -636,15 +648,25 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
         
         writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
 
-        fmap_score = evaluate_with_mnz(
+        
+        fmap_score_neural = evaluate_neural(
             epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
-            num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
-            epochs_predictions["val"], path_to_mnz_models
+            False, num_clips, structured_events, use_cuda, classes_names, writer_val, brief_summary,
+            epochs_predictions["val_neural"]
         )
         
-        if fmap_score > max_fmap_score:
-            best_model_ep = epoch
-            max_fmap_score = fmap_score
+        fmap_score_mnz = evaluate_with_mnz(
+            epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
+            num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+            epochs_predictions["val_mnz"], path_to_mnz_models
+        )
+        
+        fmap_score = [fmap_score_neural, fmap_score_mnz]
+        
+        for i in range(2):
+            if fmap_score[i] > max_fmap_score[i]:
+                best_models_ep[i] = epoch
+                max_fmap_score[i] = fmap_score[i]
         
         state = {
             "epoch": epoch,
@@ -653,288 +675,305 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
         }
         torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
     
-    best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
-    print("Loading model " + best_model_path)
+    for i in range(2):
+        eval = ""
+        if i == 0:
+            eval = "neural"
+        else:
+            eval = "mnz"
+            
+        best_model_path = saved_models_dir + "model_{}.pth".format(best_models_ep[i])
+        print("Loading model " + best_model_path)
+        
+        # load and evaluate best model on test set
+        if use_cuda:
+            state = torch.load(best_model_path)
+        else:
+            state = torch.load(best_model_path, map_location=torch.device('cpu'))
+        
+        nn_model.load_state_dict(state["state_dict"])
     
-    # load and evaluate best model on test set
-    if use_cuda:
-        state = torch.load(best_model_path)
-    else:
-        state = torch.load(best_model_path, map_location=torch.device('cpu'))
-    
-    nn_model.load_state_dict(state["state_dict"])
-
-    fmap_score = evaluate_with_mnz(
-        best_model_ep, "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
-        num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
-        epochs_predictions["test"], path_to_mnz_models
-    )
-    
+        fmap_score = 0
+        if i == 0:
+            fmap_score = evaluate_neural(
+                best_models_ep[i], "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss,
+                ll_activation, False, num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+                epochs_predictions["test_{}".format(eval)]
+            )
+        else:
+            fmap_score = evaluate_with_mnz(
+                best_models_ep[i], "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
+                num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+                epochs_predictions["test_{}".format(eval)], path_to_mnz_models
+            )
+        print(fmap_score)
+        print(best_models_ep[i])
+        
     with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
         pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
-    
+        
     brief_summary.close()
-    print(fmap_score)
-    print(best_model_ep)
+   
 
 
 def train_exp2_two_heads_nmnz_combined_sup_different_batches(se_train, se_val, se_test, features_train, features_test, nn_model,
                                            cfg_train, cfg_dataset):
-    # training info
-    run_id = cfg_train["run_id"]
-    use_cuda = cfg_train["use_cuda"]
-    num_epochs = cfg_train["num_epochs"]
-    save_epochs = cfg_train["save_epochs"]
-    
-    # last layer activation
-    ll_activation_name = cfg_train["ll_activation"]
-    ll_activation = None
-    if ll_activation_name == "softmax":
-        ll_activation = nn.Softmax(1)
-    
-    # loss function
-    loss_name = cfg_train["loss"]
-    loss = None
-    if loss_name == "CE":
-        loss = nn.CrossEntropyLoss(reduction="mean")
-    
-    # mnz_models
-    path_to_mnz_models = cfg_train["path_to_mnz_models"]
-    mnz_files_names = os.listdir(path_to_mnz_models)
-    mnz_files_names.sort()
-    mnz_models = {}
-    for mnz_file_name in mnz_files_names:
-        se_name = mnz_file_name.split(".")[0]
-        with open(path_to_mnz_models + mnz_file_name, "r") as mnz_file:
-            mnz_models[se_name] = mnz_file.read()
-    
-    batch_size = cfg_train["batch_size"]
-    num_batches = len(se_train) // batch_size
-    learning_rate = cfg_train["learning_rate"]
-    weight_decay = cfg_train["weight_decay"]
-    optimizer = cfg_train["optimizer"]
-    num_clips = cfg_train["num_clips"]
-    classes_names = cfg_train["classes_names"]
-    structured_events = cfg_train["structured_events"]
-    se_direct_sup = cfg_train["structured_events_direct_sup"]
-    
-    saved_models_dir = cfg_dataset.saved_models_dir
-    # signature
-    train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id, num_epochs, batch_size, learning_rate,
-                                                              weight_decay, optimizer)
-    saved_models_dir += train_info
-    os.makedirs(saved_models_dir, exist_ok=True)
-    
-    epochs_predictions = {
-        "train":
-            {
-                "epoch": [], "video_se": [],  "video_ae": [], "gt_se_names_se": [], "gt_se_names_ae": [], "pred_se_names": [],
-                "se_interval_se": [], "se_interval_ae": [],
-                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
-                "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
-            },
-        "val":
-            {
-                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
-                "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
-            },
-        "test":
-            {
-                "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
-                "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
-                "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
-            },
-    }
-    
-    # to save metrics during training
-    writer_train = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "train/")
-    writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
-    brief_summary = open("{}/brief_summary.txt".format(cfg_dataset.tf_logs_dir + train_info), "w")
-    best_model_ep = 0
-    
-    if optimizer == "Adam":
-        print("Using ADAM optimizer")
-        optimizer = torch.optim.Adam(nn_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    
-    features_train = convert_to_float_tensor(features_train)
-    features_test = convert_to_float_tensor(features_test)
-    
-    # se_train = se_train[:5]
-    # se_val = [se_val[1]] + [se_val[-1]]
-    # se_test = [se_test[1]] + [se_test[-1]]
-    examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup)
-    labels_ae_train = get_labels(se_train, cfg_train)
-    labels_se_train = get_se_labels(se_train, cfg_train)
-    
-    labels_ae_val = get_labels(se_val, cfg_train)
-    labels_se_val = get_se_labels(se_val, cfg_train)
-    
-    labels_ae_test = get_labels(se_test, cfg_train)
-    labels_se_test = get_se_labels(se_test, cfg_train)
-    
-    max_fmap_score = 0.
-    
-    num_training_examples = len(se_train)
-    
-    optimizer.zero_grad()
-    
-    rng = random.Random(0)
-    
-    for epoch in range(1, num_epochs + 1):
-        start_time_epoch = time.time()
-        print("\n--- START EPOCH {}\n".format(epoch))
-        nn_model.train()
-        rng.shuffle(se_train)
-        
-        batches_se = get_batches(se_train, examples_dir_sup, batch_size, epoch, "mnz")
-        batches_ae = get_batches(se_train, examples_dir_sup, batch_size, epoch+100, "mnz")
-
-        tot_time_mnz = 0.
-        epoch_loss = 0.
-        batch_loss = 0.
-        
-        for idx_batch, (batch_se, batch_ae) in enumerate(zip(batches_se, batches_ae)):
-            for idx_example, (example_batch_se, example_batch_ae) in enumerate(zip(batch_se, batch_ae)):
-                print(example_batch_se)
-                print(example_batch_ae)
-                
-                # get video, duration, num_features, se name and interval of the se
-                video_se, gt_se_name_se, duration_se, num_features_se, se_interval_se = \
-                    example_batch_se[0], example_batch_se[1], example_batch_se[2], example_batch_se[3], example_batch_se[4]
-
-                # get video, duration, num_features, se name and interval of the ae
-                video_ae, gt_se_name_ae, duration_ae, num_features_ae, se_interval_ae = \
-                    example_batch_ae[0], example_batch_ae[1], example_batch_ae[2], example_batch_ae[3], \
-                    example_batch_ae[4]
-                
-                features_video_se = features_train[video_se]
-                features_video_ae = features_train[video_ae]
-                
-                # get clip and labels of both se and ae
-                features_clip_se = features_video_se[se_interval_se[0]:se_interval_se[1] + 1]
-                features_clip_ae = features_video_ae[se_interval_ae[0]:se_interval_ae[1] + 1]
-                id_label_se = "{}-{}-{}".format(video_se, gt_se_name_se, se_interval_se)
-                id_label_ae = "{}-{}-{}".format(video_ae, gt_se_name_ae, se_interval_ae)
-                
-                # get the output from the network
-                out_se = nn_model(features_clip_se.unsqueeze(0))
-                out_ae = nn_model(features_clip_ae.unsqueeze(0))
-                
-                # labels for ae and se
-                labels_clip_ae = None
-                labels_clip_se = labels_se_train[id_label_se][gt_se_name_se]
-                
-                # network outputs for ae and se
-                outputs_ae = out_ae['final_output'][0]
-                outputs_se = out_se['final_output_se'][0]
-                
-                # mnz
-                outputs_act_ae = ll_activation(outputs_ae.transpose(0, 1))
-                
-                # minizinc part
-                tot_time_example = 0
-                
-                if not isinstance(example_batch_ae, tuple):
-                    example_batch_ae = tuple(example_batch_ae.tolist())
-                    
-                if example_batch_ae in examples_dir_sup:
-                    # use dataset ground truth
-                    labels_clip_ae = labels_ae_train[id_label_ae]
-                else:
-                    # use solution provided by the solver
-                    mnz_problem, _ = build_problem_exp1(gt_se_name_ae, mnz_models[gt_se_name_ae], outputs_act_ae)
-                    
-                    start_time = time.time()
-                    sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
-                    end_time = time.time()
-                    tot_time_example += end_time - start_time
-                    
-                    tot_time_mnz += tot_time_example
-                    
-                    labels_clip_ae = torch.zeros(outputs_ae.shape)
-                    
-                    fill_mnz_pred_exp1(labels_clip_ae, sol, gt_se_name_ae)
-                    
-                    print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
-                    print("MNZ sol: {}".format(str(sol)))
-                
-                example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
-                
-                batch_loss += example_loss
-                
-                example_loss.backward()
-                
-                print("\nEpoch {} - Batch {}/{} - Example {}/{} ---- loss = {:.4f}\n".format(epoch, idx_batch + 1,
-                                                                                             num_batches,
-                                                                                             idx_example + 1,
-                                                                                             batch_size, example_loss))
-                
-                # outputs_act = ll_activation(outputs)
-                epochs_predictions["train"]["epoch"].append(epoch)
-                epochs_predictions["train"]["video_se"].append(video_se)
-                epochs_predictions["train"]["video_ae"].append(video_ae)
-                epochs_predictions["train"]["gt_se_names_se"].append(gt_se_name_se)
-                epochs_predictions["train"]["gt_se_names_ae"].append(gt_se_name_ae)
-                epochs_predictions["train"]["se_interval_se"].append(se_interval_se)
-                epochs_predictions["train"]["se_interval_ae"].append(se_interval_ae)
-                epochs_predictions["train"]["ground_truth"].append(labels_ae_train[id_label_ae].cpu().detach().numpy())
-                
-                epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae.cpu().detach().numpy())
-                epochs_predictions["train"]["outputs_act_ae"].append(outputs_act_ae.cpu().detach().numpy())
-                
-                epochs_predictions["train"]["raw_outputs_se"].append(outputs_se.cpu().detach().numpy())
-                epochs_predictions["train"]["outputs_act_se"].append(ll_activation(outputs_se).cpu().detach().numpy())
-            
-            print("\nEpoch {} BATCH ---- loss = {}\n".format(epoch, batch_loss))
-            epoch_loss += batch_loss / num_batches
-            batch_loss = 0.
-            optimizer.step()
-            optimizer.zero_grad()
-        
-        end_time_epoch = time.time()
-        print(
-            "--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
-        
-        writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
-        
-        fmap_score = evaluate_with_mnz(
-            epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
-            num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
-            epochs_predictions["val"], path_to_mnz_models
-        )
-        
-        if fmap_score > max_fmap_score:
-            best_model_ep = epoch
-            max_fmap_score = fmap_score
-        
-        state = {
-            "epoch": epoch,
-            "state_dict": nn_model.state_dict(),
-            "optimizer": optimizer.state_dict()
-        }
-        torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
-    
-    best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
-    print("Loading model " + best_model_path)
-    
-    # load and evaluate best model on test set
-    if use_cuda:
-        state = torch.load(best_model_path)
-    else:
-        state = torch.load(best_model_path, map_location=torch.device('cpu'))
-    
-    nn_model.load_state_dict(state["state_dict"])
-    
-    fmap_score = evaluate_with_mnz(
-        best_model_ep, "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
-        num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
-        epochs_predictions["test"], path_to_mnz_models
-    )
-    
-    with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
-        pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    brief_summary.close()
-    print(fmap_score)
-    print(best_model_ep)
+    pass
+    # # training info
+    # run_id = cfg_train["run_id"]
+    # use_cuda = cfg_train["use_cuda"]
+    # num_epochs = cfg_train["num_epochs"]
+    # save_epochs = cfg_train["save_epochs"]
+    #
+    # # last layer activation
+    # ll_activation_name = cfg_train["ll_activation"]
+    # ll_activation = None
+    # if ll_activation_name == "softmax":
+    #     ll_activation = nn.Softmax(1)
+    #
+    # # loss function
+    # loss_name = cfg_train["loss"]
+    # loss = None
+    # if loss_name == "CE":
+    #     loss = nn.CrossEntropyLoss(reduction="mean")
+    #
+    # # mnz_models
+    # path_to_mnz_models = cfg_train["path_to_mnz_models"]
+    # mnz_files_names = os.listdir(path_to_mnz_models)
+    # mnz_files_names.sort()
+    # mnz_models = {}
+    # for mnz_file_name in mnz_files_names:
+    #     se_name = mnz_file_name.split(".")[0]
+    #     with open(path_to_mnz_models + mnz_file_name, "r") as mnz_file:
+    #         mnz_models[se_name] = mnz_file.read()
+    #
+    # batch_size = cfg_train["batch_size"]
+    # num_batches = len(se_train) // batch_size
+    # learning_rate = cfg_train["learning_rate"]
+    # weight_decay = cfg_train["weight_decay"]
+    # optimizer = cfg_train["optimizer"]
+    # num_clips = cfg_train["num_clips"]
+    # classes_names = cfg_train["classes_names"]
+    # structured_events = cfg_train["structured_events"]
+    # se_direct_sup = cfg_train["structured_events_direct_sup"]
+    #
+    # saved_models_dir = cfg_dataset.saved_models_dir
+    # # signature
+    # train_info = "/{}/ne_{}_bs_{}_lr_{}_wd_{}_opt_{}/".format(run_id, num_epochs, batch_size, learning_rate,
+    #                                                           weight_decay, optimizer)
+    # saved_models_dir += train_info
+    # os.makedirs(saved_models_dir, exist_ok=True)
+    #
+    # epochs_predictions = {
+    #     "train":
+    #         {
+    #             "epoch": [], "video_se": [],  "video_ae": [], "gt_se_names_se": [], "gt_se_names_ae": [], "pred_se_names": [],
+    #             "se_interval_se": [], "se_interval_ae": [],
+    #             "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+    #             "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
+    #         },
+    #     "val":
+    #         {
+    #             "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
+    #             "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+    #             "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
+    #         },
+    #     "test":
+    #         {
+    #             "epoch": [], "video": [], "gt_se_names": [], "pred_se_names": [], "se_interval": [],
+    #             "ground_truth": [], "raw_outputs_ae": [], "raw_outputs_se": [],
+    #             "outputs_act_ae": [], "outputs_act_se": [], "predictions": [], "predictions_from_nn": []
+    #         },
+    # }
+    #
+    # # to save metrics during training
+    # writer_train = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "train/")
+    # writer_val = SummaryWriter(cfg_dataset.tf_logs_dir + train_info + "val/")
+    # brief_summary = open("{}/brief_summary.txt".format(cfg_dataset.tf_logs_dir + train_info), "w")
+    # best_model_ep = 0
+    #
+    # if optimizer == "Adam":
+    #     print("Using ADAM optimizer")
+    #     optimizer = torch.optim.Adam(nn_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    #
+    # features_train = convert_to_float_tensor(features_train)
+    # features_test = convert_to_float_tensor(features_test)
+    #
+    # # se_train = se_train[:5]
+    # # se_val = [se_val[1]] + [se_val[-1]]
+    # # se_test = [se_test[1]] + [se_test[-1]]
+    # examples_dir_sup = get_examples_direct_supervision(se_train, se_direct_sup)
+    # labels_ae_train = get_labels(se_train, cfg_train)
+    # labels_se_train = get_se_labels(se_train, cfg_train)
+    #
+    # labels_ae_val = get_labels(se_val, cfg_train)
+    # labels_se_val = get_se_labels(se_val, cfg_train)
+    #
+    # labels_ae_test = get_labels(se_test, cfg_train)
+    # labels_se_test = get_se_labels(se_test, cfg_train)
+    #
+    # max_fmap_score = 0.
+    #
+    # num_training_examples = len(se_train)
+    #
+    # optimizer.zero_grad()
+    #
+    # rng = random.Random(0)
+    #
+    # for epoch in range(1, num_epochs + 1):
+    #     start_time_epoch = time.time()
+    #     print("\n--- START EPOCH {}\n".format(epoch))
+    #     nn_model.train()
+    #     rng.shuffle(se_train)
+    #
+    #     batches_se = get_batches(se_train, examples_dir_sup, batch_size, epoch, "mnz")
+    #     batches_ae = get_batches(se_train, examples_dir_sup, batch_size, epoch+100, "mnz")
+    #
+    #     tot_time_mnz = 0.
+    #     epoch_loss = 0.
+    #     batch_loss = 0.
+    #
+    #     for idx_batch, (batch_se, batch_ae) in enumerate(zip(batches_se, batches_ae)):
+    #         for idx_example, (example_batch_se, example_batch_ae) in enumerate(zip(batch_se, batch_ae)):
+    #             print(example_batch_se)
+    #             print(example_batch_ae)
+    #
+    #             # get video, duration, num_features, se name and interval of the se
+    #             video_se, gt_se_name_se, duration_se, num_features_se, se_interval_se = \
+    #                 example_batch_se[0], example_batch_se[1], example_batch_se[2], example_batch_se[3], example_batch_se[4]
+    #
+    #             # get video, duration, num_features, se name and interval of the ae
+    #             video_ae, gt_se_name_ae, duration_ae, num_features_ae, se_interval_ae = \
+    #                 example_batch_ae[0], example_batch_ae[1], example_batch_ae[2], example_batch_ae[3], \
+    #                 example_batch_ae[4]
+    #
+    #             features_video_se = features_train[video_se]
+    #             features_video_ae = features_train[video_ae]
+    #
+    #             # get clip and labels of both se and ae
+    #             features_clip_se = features_video_se[se_interval_se[0]:se_interval_se[1] + 1]
+    #             features_clip_ae = features_video_ae[se_interval_ae[0]:se_interval_ae[1] + 1]
+    #             id_label_se = "{}-{}-{}".format(video_se, gt_se_name_se, se_interval_se)
+    #             id_label_ae = "{}-{}-{}".format(video_ae, gt_se_name_ae, se_interval_ae)
+    #
+    #             # get the output from the network
+    #             out_se = nn_model(features_clip_se.unsqueeze(0))
+    #             out_ae = nn_model(features_clip_ae.unsqueeze(0))
+    #
+    #             # labels for ae and se
+    #             labels_clip_ae = None
+    #             labels_clip_se = labels_se_train[id_label_se][gt_se_name_se]
+    #
+    #             # network outputs for ae and se
+    #             outputs_ae = out_ae['final_output'][0]
+    #             outputs_se = out_se['final_output_se'][0]
+    #
+    #             # mnz
+    #             outputs_act_ae = ll_activation(outputs_ae.transpose(0, 1))
+    #
+    #             # minizinc part
+    #             tot_time_example = 0
+    #
+    #             if not isinstance(example_batch_ae, tuple):
+    #                 example_batch_ae = tuple(example_batch_ae.tolist())
+    #
+    #             if example_batch_ae in examples_dir_sup:
+    #                 # use dataset ground truth
+    #                 labels_clip_ae = labels_ae_train[id_label_ae]
+    #             else:
+    #                 # use solution provided by the solver
+    #                 mnz_problem, _ = build_problem_exp1(gt_se_name_ae, mnz_models[gt_se_name_ae], outputs_act_ae)
+    #
+    #                 start_time = time.time()
+    #                 sol = pymzn.minizinc(mnz_problem, solver=pymzn.gurobi)
+    #                 end_time = time.time()
+    #                 tot_time_example += end_time - start_time
+    #
+    #                 tot_time_mnz += tot_time_example
+    #
+    #                 labels_clip_ae = torch.zeros(outputs_ae.shape)
+    #
+    #                 fill_mnz_pred_exp1(labels_clip_ae, sol, gt_se_name_ae)
+    #
+    #                 print("--- call to mnz - time = {:.2f}\n".format(tot_time_example))
+    #                 print("MNZ sol: {}".format(str(sol)))
+    #
+    #             example_loss = loss(outputs_se, labels_clip_se) + loss(outputs_ae, labels_clip_ae)
+    #
+    #             batch_loss += example_loss
+    #
+    #             example_loss.backward()
+    #
+    #             print("\nEpoch {} - Batch {}/{} - Example {}/{} ---- loss = {:.4f}\n".format(epoch, idx_batch + 1,
+    #                                                                                          num_batches,
+    #                                                                                          idx_example + 1,
+    #                                                                                          batch_size, example_loss))
+    #
+    #             # outputs_act = ll_activation(outputs)
+    #             epochs_predictions["train"]["epoch"].append(epoch)
+    #             epochs_predictions["train"]["video_se"].append(video_se)
+    #             epochs_predictions["train"]["video_ae"].append(video_ae)
+    #             epochs_predictions["train"]["gt_se_names_se"].append(gt_se_name_se)
+    #             epochs_predictions["train"]["gt_se_names_ae"].append(gt_se_name_ae)
+    #             epochs_predictions["train"]["se_interval_se"].append(se_interval_se)
+    #             epochs_predictions["train"]["se_interval_ae"].append(se_interval_ae)
+    #             epochs_predictions["train"]["ground_truth"].append(labels_ae_train[id_label_ae].cpu().detach().numpy())
+    #
+    #             epochs_predictions["train"]["raw_outputs_ae"].append(outputs_ae.cpu().detach().numpy())
+    #             epochs_predictions["train"]["outputs_act_ae"].append(outputs_act_ae.cpu().detach().numpy())
+    #
+    #             epochs_predictions["train"]["raw_outputs_se"].append(outputs_se.cpu().detach().numpy())
+    #             epochs_predictions["train"]["outputs_act_se"].append(ll_activation(outputs_se).cpu().detach().numpy())
+    #
+    #         print("\nEpoch {} BATCH ---- loss = {}\n".format(epoch, batch_loss))
+    #         epoch_loss += batch_loss / num_batches
+    #         batch_loss = 0.
+    #         optimizer.step()
+    #         optimizer.zero_grad()
+    #
+    #     end_time_epoch = time.time()
+    #     print(
+    #         "--- END EPOCH {} -- LOSS {} -- TIME {:.2f}\n".format(epoch, epoch_loss, end_time_epoch - start_time_epoch))
+    #
+    #     writer_train.add_scalar("Loss", epoch_loss / num_training_examples, epoch)
+    #
+    #     fmap_score = evaluate_with_mnz(
+    #         epoch, "Validation", se_val, features_train, labels_ae_val, labels_se_val, nn_model, loss, ll_activation,
+    #         num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+    #         epochs_predictions["val"], path_to_mnz_models
+    #     )
+    #
+    #     if fmap_score > max_fmap_score:
+    #         best_model_ep = epoch
+    #         max_fmap_score = fmap_score
+    #
+    #     state = {
+    #         "epoch": epoch,
+    #         "state_dict": nn_model.state_dict(),
+    #         "optimizer": optimizer.state_dict()
+    #     }
+    #     torch.save(state, saved_models_dir + "model_{}.pth".format(epoch))
+    #
+    # best_model_path = saved_models_dir + "model_{}.pth".format(best_model_ep)
+    # print("Loading model " + best_model_path)
+    #
+    # # load and evaluate best model on test set
+    # if use_cuda:
+    #     state = torch.load(best_model_path)
+    # else:
+    #     state = torch.load(best_model_path, map_location=torch.device('cpu'))
+    #
+    # nn_model.load_state_dict(state["state_dict"])
+    #
+    # fmap_score = evaluate_with_mnz(
+    #     best_model_ep, "Test", se_test, features_test, labels_ae_test, labels_se_test, nn_model, loss, ll_activation,
+    #     num_clips, structured_events, use_cuda, classes_names, None, brief_summary,
+    #     epochs_predictions["test"], path_to_mnz_models
+    # )
+    #
+    # with open("{}/epochs_predictions.pickle".format(cfg_dataset.tf_logs_dir + train_info), "wb") as epp_file:
+    #     pickle.dump(epochs_predictions, epp_file, protocol=pickle.HIGHEST_PROTOCOL)
+    #
+    # brief_summary.close()
+    # print(fmap_score)
+    # print(best_model_ep)
