@@ -541,7 +541,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
         nn_model.train()
         rng.shuffle(se_train)
 
-        batches = get_batches(se_train, examples_dir_sup, batch_size, epoch, "mnz")
+        batches, num_batches = get_batches(se_train, examples_dir_sup, batch_size, epoch, "mnz")
         
         tot_time_mnz = 0.
         epoch_loss = 0.
@@ -575,7 +575,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
     
                 # minizinc part
                 tot_time_example = 0
-    
+
                 if example_batch in examples_dir_sup:
                     # use dataset ground truth
                     labels_clip_ae = labels_ae_train[id_label]

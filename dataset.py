@@ -412,18 +412,20 @@ def get_examples_direct_supervision(se_list, se_dir_sup, seed=0):
     return examples_dir_sup
 
 
-def _pick_examples(list_of_example, list_of_examples_copy, num_examples_to_pick, rng):
+def _pick_examples(type, list_of_example, list_of_examples_copy, num_examples_to_pick, rng):
     batch = []
-    for _ in range(num_examples_to_pick):
-        # refill the list
-        if len(list_of_examples_copy) == 0:
-            list_of_examples_copy = copy.deepcopy(list_of_example)
-        num_examples = len(list_of_examples_copy) - 1
-        # pick a random example a remove it
-        print(num_examples)
-        idx_example = rng.randint(0, num_examples)
-        batch.append(list_of_examples_copy[idx_example])
-        list_of_examples_copy.pop(idx_example)
+    
+    if (type == "mnz" and len(list_of_examples_copy) >= num_examples_to_pick) or type == "neural":
+        for _ in range(num_examples_to_pick):
+            # refill the list
+            if len(list_of_examples_copy) == 0:
+                list_of_examples_copy = copy.deepcopy(list_of_example)
+            num_examples = len(list_of_examples_copy) - 1
+            # pick a random example a remove it
+            print(num_examples)
+            idx_example = rng.randint(0, num_examples)
+            batch.append(list_of_examples_copy[idx_example])
+            list_of_examples_copy.pop(idx_example)
     
     return batch
 
@@ -441,7 +443,6 @@ def get_batches(se_list, examples_dir_sup, batch_size, seed, exp="neural"):
         batches = np.array_split(se_list, num_batches)
     elif exp=="mnz":
         num_batches = tot_examples // batch_size
-        num_examples_per_type = batch_size // 2
         
         mnz_examples = copy.deepcopy(se_list)
         # avoid to modify original list
@@ -452,22 +453,26 @@ def get_batches(se_list, examples_dir_sup, batch_size, seed, exp="neural"):
             idx_remove = mnz_examples.index(example_dir_sup)
             mnz_examples.pop(idx_remove)
         
-        assert (len(mnz_examples) + len(examples_dir_sup)) == tot_examples
+        num_mnz_examples = len(mnz_examples)
+        num_dir_sup_examples = len(examples_dir_sup)
+        assert (num_mnz_examples + num_dir_sup_examples) == tot_examples
         
         mnz_examples_copy = copy.deepcopy(mnz_examples)
         
-        for _ in range(num_batches):
-            # pick gt examples
-            batch_gt = _pick_examples(examples_dir_sup, examples_dir_sup_copy, num_examples_per_type, rng)
-            # pick mnz examples
-            batch_mnz = _pick_examples(mnz_examples, mnz_examples_copy, num_examples_per_type, rng)
+        if num_mnz_examples > num_dir_sup_examples:
+            num_batches = (num_mnz_examples // batch_size) * 2
             
-            batch = batch_gt + batch_mnz
+        for idx_batch in range(num_batches):
+            if (idx_batch + 1) % 2 != 0:
+                # pick gt examples
+                batch = _pick_examples("neural", examples_dir_sup, examples_dir_sup_copy, batch_size, rng)
+            else:
+                # pick mnz examples
+                batch = _pick_examples("mnz", mnz_examples, mnz_examples_copy, batch_size, rng)
             
             batches.append(batch)
     
-    rng.shuffle(batches)
-    return batches
+    return batches, num_batches
 
 
 
