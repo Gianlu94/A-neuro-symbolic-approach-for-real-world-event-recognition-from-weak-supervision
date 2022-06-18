@@ -350,14 +350,13 @@ def train_exp2_neural(se_train, se_val, se_test, features_train, features_test, 
         nn_model.train()
         rng.shuffle(se_train)
 
-        batches = get_batches(se_train, examples_dir_sup, batch_size, epoch)
+        batches, _ = get_batches(se_train, examples_dir_sup, batch_size, epoch)
         
         epoch_loss = 0.
         batch_loss = 0.
         
         for idx_batch, batch in enumerate(batches):
             for idx_example, example_batch in enumerate(batch):
-                print(example_batch)
                 # get video, duration, num_features, se name and interval where the se is happening
                 video, gt_se_name, duration, num_features, se_interval = \
                     example_batch[0], example_batch[1], example_batch[2], example_batch[3], example_batch[4]
