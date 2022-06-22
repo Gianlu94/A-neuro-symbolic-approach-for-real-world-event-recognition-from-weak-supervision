@@ -12,7 +12,7 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 from tensorboardX import SummaryWriter
 
 from exp2_baselines import evaluate_with_mnz, evaluate as evaluate_neural
-from dataset import get_batches, get_labels, get_avg_labels, get_examples_direct_supervision, get_se_labels
+from dataset import get_batches_2, get_labels, get_avg_labels, get_examples_direct_supervision, get_se_labels
 from utils import convert_to_float_tensor, get_textual_label_from_tensor
 from minizinc.my_functions import build_problem_exp1, fill_mnz_pred_exp1, get_best_sol, set_prop_avg
 
@@ -553,7 +553,7 @@ def train_exp2_two_heads_nmnz_combined_sup(se_train, se_val, se_test, features_t
         nn_model.train()
         rng.shuffle(se_train)
 
-        batches, num_batches = get_batches(se_train, examples_dir_sup, batch_size, epoch, "mnz")
+        batches, num_batches = get_batches_2(se_train, examples_dir_sup, batch_size, epoch, "mnz")
         
         tot_time_mnz = 0.
         epoch_loss = 0.

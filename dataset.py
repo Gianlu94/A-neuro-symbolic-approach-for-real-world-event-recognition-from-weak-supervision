@@ -475,5 +475,55 @@ def get_batches(se_list, examples_dir_sup, batch_size, seed, exp="neural"):
     return batches, num_batches
 
 
+def get_batches_2(se_list, examples_dir_sup, batch_size, seed, exp="neural"):
+    # get batches for neural and mnz exps. In case of mnz, it returns balanced batches (gt and mnz)
+    
+    tot_examples = len(se_list)
+    tot_examples_dir_sup = len(examples_dir_sup)
+    batches = []
+    rng = random.Random(seed)
+    num_batches = tot_examples // batch_size
+    
+    if tot_examples == tot_examples_dir_sup or tot_examples_dir_sup == 0 or exp == "neural":
+        batches = np.array_split(se_list, num_batches)
+    elif exp == "mnz":
+        num_batches = tot_examples // batch_size
+        num_ex_per_type = batch_size // 2
+        
+        mnz_examples = copy.deepcopy(se_list)
+        # avoid to modify original list
+        examples_dir_sup_copy = copy.deepcopy(examples_dir_sup)
+        
+        # remanining examples correspond to mnz examples
+        for example_dir_sup in examples_dir_sup:
+            idx_remove = mnz_examples.index(example_dir_sup)
+            mnz_examples.pop(idx_remove)
+        
+        num_mnz_examples = len(mnz_examples)
+        num_dir_sup_examples = len(examples_dir_sup)
+        assert (num_mnz_examples + num_dir_sup_examples) == tot_examples
+        
+        mnz_examples_copy = copy.deepcopy(mnz_examples)
+        
+        if num_mnz_examples > num_dir_sup_examples:
+            num_batches = (num_mnz_examples // batch_size) * 2
+        
+        for idx_batch in range(num_batches):
+            # pick gt examples
+            batch_1 = _pick_examples("neural", examples_dir_sup, examples_dir_sup_copy, num_ex_per_type, rng)
+            
+            if len(mnz_examples_copy) >= num_ex_per_type:
+                # pick mnz examples
+                batch_2 = _pick_examples("mnz", mnz_examples, mnz_examples_copy, num_ex_per_type, rng)
+            else:
+                batch_2 = _pick_examples("neural", examples_dir_sup, examples_dir_sup_copy, num_ex_per_type, rng)
+                
+            batch = batch_1 + batch_2
+            
+            batches.append(batch)
+    
+    return batches, num_batches
+
+
 
 
