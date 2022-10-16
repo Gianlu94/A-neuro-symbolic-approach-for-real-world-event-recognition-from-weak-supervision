@@ -1,8 +1,10 @@
-# NSA_framework
-A neuro-symbolic framework for structured event recognition using Allen's interval algebra
+# A neuro-symbolic approach for real-world event recognition from weak supervision
+refactoring (ongoing)
 
 <!-- GETTING STARTED -->
 ## Getting Started
+
+TODO: update instructions
 
 1) Install Minizinc:
 
